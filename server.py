@@ -75,6 +75,14 @@ async def cobalt_extract(url, audio_only=False):
 
 def ytdl_extract(url):
     cookies_path = os.path.join(DIR, "cookies.txt")
+    
+    # Try to load cookies from environment variable (for Render deployment)
+    cookies_env = os.environ.get("YOUTUBE_COOKIES", "")
+    if cookies_env:
+        cookies_path = os.path.join(DIR, "cookies_runtime.txt")
+        with open(cookies_path, "w") as f:
+            f.write(cookies_env)
+    
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
