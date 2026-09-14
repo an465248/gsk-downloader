@@ -81,11 +81,16 @@ def ytdl_extract(url):
         "skip_download": True,
         "extract_flat": False,
         "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "referer": "https://www.youtube.com/",
         "extractor_args": {
             "youtube": {
-                "player_client": ["web", "mweb", "android"],
+                "player_client": ["mweb"],
             }
+        },
+        "http_headers": {
+            "User-Agent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://www.youtube.com/",
+            "Origin": "https://www.youtube.com",
         },
     }
     if os.path.exists(cookies_path):
