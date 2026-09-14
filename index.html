@@ -122,9 +122,6 @@
     border:1px solid #ffffff18;border-radius:999px;padding:7px 15px;transition:.18s}
   .pill:hover{border-color:#22d3ee66;color:#fff}
   .pill.on{background:var(--grad);border-color:transparent;color:#04070f;box-shadow:0 6px 18px -8px #22d3eeaa}
-  .pill.best{position:relative}
-  .pill.best::after{content:"BEST";font-size:8px;letter-spacing:.6px;position:absolute;top:-7px;right:-4px;background:var(--ylw);
-    color:#1a1200;border-radius:6px;padding:1px 6px;font-weight:800}
 
   /* formats */
   .flist{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 20px 20px}
@@ -181,6 +178,14 @@
 
   .hidden{display:none !important}
   .frac{color:#5b6a94;text-align:center;font-size:12px;margin-top:10px}
+
+  /* Cobalt URL input */
+  .cobalt-setup{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin:20px auto;max-width:600px}
+  .cobalt-setup label{font-size:13px;color:var(--mut);font-weight:600;display:block;margin-bottom:6px}
+  .cobalt-setup input{width:100%;background:#0a0f1f;border:1px solid var(--line);border-radius:10px;padding:10px 14px;color:#fff;font-size:13px;font-family:inherit;outline:none}
+  .cobalt-setup input:focus{border-color:var(--a)}
+  .cobalt-setup .row{display:flex;gap:8px;margin-top:8px}
+  .cobalt-setup .row button{flex:1}
 </style>
 </head>
 <body>
@@ -243,6 +248,17 @@
     </div>
   </div>
 
+  <!-- Cobalt API Setup -->
+  <div class="cobalt-setup" id="cobaltSetup" style="display:none">
+    <label>Cobalt API URL (self-hosted ya public instance)</label>
+    <input id="cobaltUrl" type="url" placeholder="https://api.cobalt.tools ya apna instance URL" value="">
+    <div class="row">
+      <button class="btn go" onclick="saveCobalt()" style="font-size:13px;padding:8px 16px">Save</button>
+      <button class="btn mini" onclick="document.getElementById('cobaltSetup').style.display='none'" style="font-size:13px;padding:8px 16px">Cancel</button>
+    </div>
+    <p style="font-size:11px;color:var(--mut);margin-top:8px">Cobalt API khud ka instance deploy karo ya koi public instance use karo. YouTube ke liye zaroori hai.</p>
+  </div>
+
   <!-- RESULTS -->
   <div id="results"></div>
 
@@ -263,10 +279,10 @@
     <p class="h2p">Chhote sawaal, seedhe jawab.</p>
     <div class="faq">
       <details class="qa"><summary>Kitne websites support hote hain?<span class="ar">+</span></summary>
-        <p>1,600+ popular platforms (YouTube, Instagram, TikTok, Facebook, X, Vimeo, Reddit, Pinterest, Twitch, etc.) ke saath saath generic extractor ki wajah se almost har woh website bhi support hoti hai jahan public/direct video media maujood hai. Isko yt-dlp engine chalaata hai.</p></details>
+        <p>1,600+ popular platforms (YouTube, Instagram, TikTok, Facebook, X, Vimeo, Reddit, Pinterest, Twitch, etc.) ke saath saath generic extractor ki wajah se almost har woh website bhi support hoti hai jahan public/direct video media maujood hai. Cobalt API use hoti hai.</p></details>
       <details class="qa"><summary>Kya main 4K mein download kar sakta hoon?<span class="ar">+</span></summary>
         <p>Haan! Jab tak source video 4K/8K available karti hai, aap 4K (2160p) ya usse upar bhi download kar sakte ho. Chhote devices ke liye 144p tak bhi option milta hai.</p></details>
-      <details class="qa"><summary>Kya yeh app 100% free hai?<span class="ar">+</summary></summary>
+      <details class="qa"><summary>Kya yeh app 100% free hai?<span class="ar">+</span></summary>
         <p>Haan, bilkul free. Na sign-up, na pese, na limits. Sirf apna URL paste karo aur download karo.</p></details>
       <details class="qa"><summary>Kya main sirf audio (MP3) download kar sakta hoon?<span class="ar">+</span></summary>
         <p>Haan. "MP3" quality chuno — app audio-only format download karega, YouTube videos ka music easily save karne ke liye perfect.</p></details>
@@ -280,7 +296,7 @@
 
 <footer>
   <div class="wrap">
-    Made with care by <b>gsk-downloader</b> &middot; Download only content you own or are allowed to use &middot; Powered by <b>YouTube-DLP</b>&nbsp;engine
+    Made with care by <b>gsk-downloader</b> &middot; Download only content you own or are allowed to use &middot; Powered by <b>Cobalt API</b>&nbsp;engine
   </div>
 </footer>
 
@@ -288,13 +304,27 @@
 
 <script>
 "use strict";
-const API_BASE = (window.location.protocol === "file:") ? "http://localhost:8000" : window.location.origin;
 const $ = id => document.getElementById(id);
 const urlInput = $("url"), goBtn = $("goBtn"), pasteBtn = $("pasteBtn");
 
 let currentFormats = [];
 let currentMeta = null;
 let selectedQ = "max";
+
+/* ---------- Cobalt API config ---------- */
+function getCobaltUrl(){
+  return localStorage.getItem("cobalt_api_url") || "";
+}
+function saveCobalt(){
+  const v = $("cobaltUrl").value.trim();
+  if(v){
+    localStorage.setItem("cobalt_api_url", v);
+    $("cobaltSetup").style.display = "none";
+    toast("Cobalt API save ho gaya!", "ok");
+  } else {
+    toast("URL khali hai!", "err");
+  }
+}
 
 /* ---------- helpers ---------- */
 function toast(msg, type="info"){
@@ -362,37 +392,148 @@ function getSource(url){
 
 const DIRECT_RE = /^https?:\/\/.+\/.+\.(mp4|webm|mkv|mov|m4v|avi|ogv|mp3|m4a|wav|ogg|opus|flac|aac|gif)(\?.*)?$/i;
 function isDirectMedia(url){ return DIRECT_RE.test(url); }
-
 const IMG_EXT = /\.(jpe?g|png|webp|gif|avif)(\?.*)?$/i;
 
-/* ---------- extract ---------- */
-async function fetchWithTimeout(url, opts, ms = 60000){
-  const ctrl = new AbortController();
-  const t = setTimeout(()=>ctrl.abort(), ms);
+/* ---------- Cobalt API extract ---------- */
+async function cobaltExtract(url){
+  const cobaltUrl = getCobaltUrl();
+  if(!cobaltUrl) return null;
+
   try{
-    return await fetch(url, Object.assign({}, opts, { signal: ctrl.signal }));
-  }finally{
-    clearTimeout(t);
+    const resp = await fetch(cobaltUrl.replace(/\/$/,"") + "/", {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url: url,
+        videoQuality: "1080",
+        filenameStyle: "pretty",
+      }),
+    });
+    const data = await resp.json();
+
+    if(data.status === "tunnel" || data.status === "redirect"){
+      const dlUrl = data.url || "";
+      if(dlUrl){
+        return {
+          title: data.filename || "Video",
+          thumbnail: "",
+          duration: null,
+          views: null,
+          author: "",
+          source: getSource(url),
+          ext: "mp4",
+          formats: [{
+            format_id: "cobalt-best",
+            ext: "mp4",
+            type: "video",
+            label: "Best Quality (Cobalt)",
+            height: null,
+            filesize: null,
+            url: dlUrl,
+            tbr: 0,
+          }],
+        };
+      }
+    }
+
+    // Cobalt v10+ returns download URL differently
+    if(data.url){
+      return {
+        title: data.filename || "Video",
+        thumbnail: "",
+        duration: null,
+        views: null,
+        author: "",
+        source: getSource(url),
+        ext: "mp4",
+        formats: [{
+          format_id: "cobalt-best",
+          ext: "mp4",
+          type: "video",
+          label: "Best Quality (Cobalt)",
+          height: null,
+          filesize: null,
+          url: data.url,
+          tbr: 0,
+        }],
+      };
+    }
+
+    return null;
+  } catch(e){
+    console.error("Cobalt error:", e);
+    return null;
   }
 }
 
-async function extract(url){
-  const res = await fetchWithTimeout(API_BASE + "/api/extract", {
-    method:"POST",
-    headers:{ "Content-Type":"application/json", "Accept":"application/json" },
-    body: JSON.stringify({ url })
-  }, 60000);
-  const text = await res.text();
-  if(!text){ throw new Error("Server se koi response nahi aaya (empty reply). Thoda ruk kar dobara try karo."); }
-  let json;
-  try{ json = JSON.parse(text); }
-  catch(e){ throw new Error("Server ka response samajh nahi aaya. Dobara try karo."); }
-  if(!res.ok || json.error){
-    const msg = json.error || json.message || ("Server error (" + res.status + ")");
-    throw new Error(msg);
+/* ---------- cobalt with audio ---------- */
+async function cobaltAudioExtract(url){
+  const cobaltUrl = getCobaltUrl();
+  if(!cobaltUrl) return null;
+
+  try{
+    const resp = await fetch(cobaltUrl.replace(/\/$/,"") + "/", {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url: url,
+        downloadMode: "audio",
+        audioFormat: "mp3",
+      }),
+    });
+    const data = await resp.json();
+    const dlUrl = data.url || "";
+    if(dlUrl){
+      return {
+        title: data.filename || "Audio",
+        thumbnail: "",
+        duration: null,
+        views: null,
+        author: "",
+        source: getSource(url),
+        ext: "mp3",
+        formats: [{
+          format_id: "cobalt-audio",
+          ext: "mp3",
+          type: "audio",
+          label: "Audio MP3 (Cobalt)",
+          height: null,
+          filesize: null,
+          url: dlUrl,
+          tbr: 0,
+        }],
+      };
+    }
+    return null;
+  } catch(e){
+    return null;
   }
-  console.log("Extract response:", json);
-  return json;
+}
+
+/* ---------- main extract ---------- */
+async function extract(url){
+  // Check if cobalt API is configured
+  const cobaltUrl = getCobaltUrl();
+
+  if(!cobaltUrl){
+    // Show setup dialog
+    $("cobaltSetup").style.display = "block";
+    $("cobaltUrl").focus();
+    throw new Error("Pehle Cobalt API URL configure karo. Neeche diye gaye box mein URL daalo.");
+  }
+
+  // Try cobalt extract
+  toast("Cobalt API se video fetch ho rahi hai...", "info");
+  const result = await cobaltExtract(url);
+  if(result) return result;
+
+  throw new Error("Video extract nahi ho payi. Cobalt API URL check karo ya dobara try karo.");
 }
 
 /* ---------- result rendering ---------- */
@@ -402,7 +543,6 @@ function renderInfo(data){
   currentMeta = data;
   box.style.display = "block";
 
-  // sort: video by height desc first, then audio, rest
   const vids = currentFormats.filter(f=>f.type==="video")
               .sort((a,b)=> heightOf(b.label)-heightOf(a.label));
   const aud = currentFormats.filter(f=>f.type==="audio");
@@ -429,28 +569,25 @@ function renderInfo(data){
         </div>
         <div class="quick">
           <button class="btn mini" id="copyInfoBtn">Copy Link</button>
-          <button class="btn mini" id="debugBtn">Debug Info</button>
+          <button class="btn mini" id="audioBtn">Download MP3</button>
         </div>
       </div>
     </div>
     <div class="qbar">
       <span class="ql">Quality:</span>
-      <button class="pill best on" data-q="max">MAX</button>
-      <button class="pill" data-q="4320">8K</button>
-      <button class="pill" data-q="2160">4K</button>
-      <button class="pill" data-q="1440">2K</button>
-      <button class="pill" data-q="1080">1080p</button>
-      <button class="pill" data-q="720">720p</button>
-      <button class="pill" data-q="480">480p</button>
-      <button class="pill" data-q="360">360p</button>
-      <button class="pill" data-q="240">240p</button>
-      <button class="pill" data-q="144">144p</button>
+      <button class="pill on" data-q="max">Best</button>
       <button class="pill" data-q="audio">MP3 / Audio</button>
     </div>
-    <div class="flist" id="flist">${ escapeHtml("") }</div>`; // placeholder replaced below
-  // render formats directly into flist
+    <div class="flist" id="flist">${ renderFormats() }</div>
+    <div class="main-dl">
+      <button class="btn go" id="mainDlBtn">
+        <svg viewBox="0 0 24 24"><path d="M12 16l-6 6-6-6h4V0h4v16h4zm12 8h-8l6-6 6 6z"/></svg>
+        Download Now
+      </button>
+    </div>
+  </div>`;
+
   box.innerHTML = html;
-  $("flist").innerHTML = renderFormats();
 
   // wire quality pills
   document.querySelectorAll(".pill").forEach(p=>{
@@ -459,21 +596,30 @@ function renderInfo(data){
       p.classList.add("on");
       selectedQ = p.dataset.q;
       $("flist").innerHTML = renderFormats();
-      toast("Quality: " + p.textContent.trim(), "info");
     });
   });
+
   $("copyInfoBtn").addEventListener("click", copyLink);
-  $("debugBtn").addEventListener("click", showDebug);
+  $("mainDlBtn").addEventListener("click", downloadMain);
+
+  // Wire audio button
+  const audioBtn = $("audioBtn");
+  if(audioBtn){
+    audioBtn.addEventListener("click", async ()=>{
+      toast("MP3 download ke liye Cobalt API se audio fetch ho rahi hai...", "info");
+      const audioResult = await cobaltAudioExtract(urlInput.value.trim());
+      if(audioResult && audioResult.formats[0]){
+        doDownload(audioResult.formats[0].url, cleanName(currentMeta.title) + " - Audio", "mp3");
+      } else {
+        toast("Audio extract nahi ho payi.", "err");
+      }
+    });
+  }
 }
 
 function renderFormats(){
-  const el = $("flist");
-  if(!el) return "";
-  const filtered = pickFormats(selectedQ);
-  if(!filtered.length){
-    return `<div class="norow">Is quality mein koi format nahi mila. Try koi aur quality ya "MAX" karo.</div>`;
-  }
-  return filtered.map(f=>{
+  if(!currentFormats.length) return `<div class="norow">Koi format nahi mila.</div>`;
+  return currentFormats.map(f=>{
     const q  = f.label || f.ext || "Format";
     const isAud = f.type === "audio";
     const sub = [f.ext ? f.ext.toUpperCase() : "", fmtBytes(f.filesize)].filter(Boolean).join(" &middot; ");
@@ -491,21 +637,6 @@ function renderFormats(){
   }).join("");
 }
 
-function pickFormats(q){
-  if(!currentFormats.length) return [];
-  if(q === "audio"){
-    return currentFormats.filter(f=>f.type==="audio");
-  }
-  const vids = currentFormats.filter(f=>f.type==="video");
-  const pool = vids.length ? vids : currentFormats;
-  if(q === "max") return pool;
-  const t = parseInt(q);
-  return pool.filter(f => {
-    const h = heightOf(f.label);
-    return h > 0 && h <= t;
-  });
-}
-
 /* ---------- download ---------- */
 function wireDownloads(){
   document.addEventListener("click", onDocClick);
@@ -517,17 +648,18 @@ function onDocClick(e){
   if(!url) return;
   doDownload(url, b.dataset.name, b.dataset.ext, b);
 }
-async function doDownload(url, name, ext, btn){
+
+function doDownload(url, name, ext, btn){
   const origText = btn ? btn.textContent : "";
   if(btn){ btn.textContent = "Preparing..."; btn.disabled = true; }
   try{
     const filename = (name || "video") + "." + (ext || "mp4");
-    const streamUrl = API_BASE + "/api/stream?url=" + encodeURIComponent(url) + "&filename=" + encodeURIComponent(filename);
     toast("Download shuru!", "ok");
     const a = document.createElement("a");
-    a.href = streamUrl;
+    a.href = url;
     a.target = "_blank";
     a.rel = "noopener";
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -538,23 +670,14 @@ async function doDownload(url, name, ext, btn){
     if(btn){ btn.textContent = origText; btn.disabled = false; }
   }
 }
-async function getDownloadUrl(url){
-  try{
-    const res = await fetchWithTimeout(API_BASE + "/api/download", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json", "Accept":"application/json" },
-      body: JSON.stringify({ url, referer: window.location.href })
-    }, 30000);
-    const text = await res.text();
-    if(!text) return url;
-    try{
-      const json = JSON.parse(text);
-      return json.url || json.download_url || json.link || url;
-    }catch(e){}
-    return url;
-  }catch(e){
-    return url;
+
+function downloadMain(){
+  if(!currentFormats.length){
+    toast("Pehle video extract karo!", "err");
+    return;
   }
+  const f = currentFormats[0];
+  doDownload(f.url, cleanName(currentMeta.title) + " - " + f.label, f.ext);
 }
 
 function copyLink(){
@@ -562,29 +685,6 @@ function copyLink(){
   if(!url) return;
   navigator.clipboard.writeText(url).then(()=>toast("Link copied!", "ok"))
     .catch(()=>{ prompt("Copy this link:", url); });
-}
-
-function showDebug(){
-  if(!currentMeta){
-    toast("Pehle video extract karo!", "err");
-    return;
-  }
-  const info = {
-    title: currentMeta.title,
-    source: currentMeta.source,
-    formats_count: currentFormats.length,
-    formats: currentFormats.map(f => ({
-      label: f.label,
-      ext: f.ext,
-      type: f.type,
-      filesize: f.filesize,
-      url: f.url ? f.url.substring(0, 150) + '...' : 'no url',
-      full_url: f.url
-    }))
-  };
-  console.log("DEBUG INFO:", info);
-  const jsonStr = JSON.stringify(info, null, 2);
-  prompt("Debug Info (copy from here):", jsonStr);
 }
 
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -605,7 +705,6 @@ async function start(){
       renderDirect(isImg);
       toast(isImg? "Direct image mili. Download kar lo!" : "Direct media file mili. Download kar lo!", "ok");
     } else {
-      toast("API try ho rahi hai... Wait karo", "info");
       const data = await extract(url);
       if(!data || (!data.formats || !data.formats.length)){
         if(data && data.error) throw new Error(data.error);
@@ -669,6 +768,16 @@ pasteBtn.addEventListener("click", async ()=>{
     toast("Clipboard access nahi hua — manually paste karo.", "err");
   }
 });
+
+// Show cobalt setup if not configured
+if(!getCobaltUrl()){
+  // Auto show after 2 seconds if no URL entered
+  setTimeout(()=>{
+    if(!urlInput.value.trim() && !getCobaltUrl()){
+      $("cobaltSetup").style.display = "block";
+    }
+  }, 2000);
+}
 
 wireDownloads();
 </script>
