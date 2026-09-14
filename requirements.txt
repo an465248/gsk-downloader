@@ -1,5 +1,3 @@
 fastapi
 uvicorn
-yt-dlp>=2026.8.19
-httpx
-mangum
+yt-dlp
