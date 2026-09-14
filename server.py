@@ -80,6 +80,13 @@ def ytdl_extract(url):
         "no_warnings": True,
         "skip_download": True,
         "extract_flat": False,
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "referer": "https://www.youtube.com/",
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["web", "mweb", "android"],
+            }
+        },
     }
     if os.path.exists(cookies_path):
         ydl_opts["cookiefile"] = cookies_path
