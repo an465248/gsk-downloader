@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>gsk-downloader — Universal Video Downloader (4K to 144p)</title>
 <meta name="description" content="gsk-downloader: paste any video URL from 1,600+ sites and download in 4K, Full HD, HD or low quality. Free, fast, no signup.">
+<meta name="theme-color" content="#070b18">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -143,6 +146,9 @@
   .main-dl{margin:0 20px 20px}
   .main-dl .go{width:100%;padding:16px;font-size:16px}
   .norow{grid-column:1/-1;text-align:center;color:var(--mut);padding:24px;font-size:14px}
+  .pbar{height:4px;background:#ffffff12;border-radius:99px;margin-top:8px;overflow:hidden}
+  .pbar>i{display:block;height:100%;width:0;background:var(--grad);transition:width .15s}
+  .merge-note{grid-column:1/-1;font-size:12px;color:var(--mut);background:#a855f712;border:1px dashed #a855f744;border-radius:12px;padding:10px 14px}
 
   /* ===== Sections ===== */
   section{margin:56px 0}
@@ -266,21 +272,22 @@
         <p>1,600+ popular platforms (YouTube, Instagram, TikTok, Facebook, X, Vimeo, Reddit, Pinterest, Twitch, etc.) ke saath saath generic extractor ki wajah se almost har woh website bhi support hoti hai jahan public/direct video media maujood hai. Isko yt-dlp engine chalaata hai.</p></details>
       <details class="qa"><summary>Kya main 4K mein download kar sakta hoon?<span class="ar">+</span></summary>
         <p>Haan! Jab tak source video 4K/8K available karti hai, aap 4K (2160p) ya usse upar bhi download kar sakte ho. Chhote devices ke liye 144p tak bhi option milta hai.</p></details>
-      <details class="qa"><summary>Kya yeh app 100% free hai?<span class="ar">+</summary></summary>
+      <details class="qa"><summary>Kya yeh app 100% free hai?<span class="ar">+</span></summary>
         <p>Haan, bilkul free. Na sign-up, na pese, na limits. Sirf apna URL paste karo aur download karo.</p></details>
       <details class="qa"><summary>Kya main sirf audio (MP3) download kar sakta hoon?<span class="ar">+</span></summary>
         <p>Haan. "MP3" quality chuno — app audio-only format download karega, YouTube videos ka music easily save karne ke liye perfect.</p></details>
       <details class="qa"><summary>Private / copyrighted videos par kya?<span class="ar">+</span></summary>
         <p>Sirf public aur freely available content download hota hai. Private, age-restricted ya login-required content nahi. Download sirf un content ke liye karo jinke malik ho ya use karne ki permission ho. Copyright ka dhyaan rakho.</p></details>
       <details class="qa"><summary>Download button dabane par kya hoga?<span class="ar">+</span></summary>
-        <p>App pehle file ko browser me fetch karke turant download karta hai. Koi bhi issue aaye toh wo link ko nayi tab mein khol deta hai jahan se seedha save kar sakte ho.</p></details>
+        <p>File <b>seedha aapke device par download</b> hoti hai — server par load nahi padta, isliye speed aapke net jaisi full milti hai. HD/4K (video-only) quality par <b>HD Merge</b> button aata hai jo video+audio aapke browser me hi jodta hai.</p></details>
     </div>
   </section>
 </main>
 
 <footer>
   <div class="wrap">
-    Made with care by <b>gsk-downloader</b> &middot; Download only content you own or are allowed to use &middot; Powered by <b>YouTube-DLP</b>&nbsp;engine
+    &copy; 2026 <b>LVIGS Pvt. Ltd.</b> All rights reserved. &middot; Powered by <b>An Nishad</b>
+    <div style="margin-top:8px;color:#5b6a94">&#x1F1EE;&#x1F1F3; India &middot; English &middot; INR</div>
   </div>
 </footer>
 
@@ -478,17 +485,19 @@ function renderFormats(){
     const isAud = f.type === "audio";
     const sub = [f.ext ? f.ext.toUpperCase() : "", fmtBytes(f.filesize)].filter(Boolean).join(" &middot; ");
     const h = heightOf(f.label);
-    const qualityTag = h ? (h + "p") : (isAud ? "Audio" : "");
+    const btnLabel = f.needs_merge ? "HD Merge" : "Download";
+    const btnTitle = f.needs_merge ? "Video+Audio browser me merge hoga (aapka CPU)" : "Seedha aapke device pe download";
     return `
     <div class="frow">
       <div class="fic ${isAud?"a":"v"}">${isAud?"MP3": (h >= 1080 ? "FHD" : (h >= 720 ? "HD" : "SD"))}</div>
       <div class="ftxt">
-        <div class="fq">${escapeHtml(q)} ${f.filesize?`<span style="font-weight:400;color:var(--mut);font-size:12px;margin-left:4px">(${fmtBytes(f.filesize)})</span>`:""}</div>
+        <div class="fq">${escapeHtml(q)} ${f.needs_merge?`<span style="font-weight:400;color:var(--a2);font-size:12px;margin-left:4px">(+audio merge)</span>`:""} ${f.filesize?`<span style="font-weight:400;color:var(--mut);font-size:12px;margin-left:4px">(${fmtBytes(f.filesize)})</span>`:""}</div>
         <div class="fsub">${sub || (isAud? "Audio format" : "Video format")}</div>
+        <div class="pbar"><i></i></div>
       </div>
-      <button class="btn dl" data-url="${escapeAttr(f.url)}" data-name="${escapeAttr(cleanName(currentMeta&&currentMeta.title)+" - "+q)}" data-ext="${escapeAttr(f.ext || (isAud?"mp3":"mp4"))}">Download</button>
+      <button class="btn dl" title="${btnTitle}" data-url="${escapeAttr(f.url)}" data-name="${escapeAttr(cleanName(currentMeta&&currentMeta.title)+" - "+q)}" data-ext="${escapeAttr(f.ext || (isAud?"mp3":"mp4"))}" data-format-id="${escapeAttr(f.format_id || "")}" data-type="${escapeAttr(f.type || "video")}">${btnLabel}</button>
     </div>`;
-  }).join("");
+  }).join("") + (filtered.some(f=>f.needs_merge) ? `<div class="merge-note">HD/4K formats video-only hote hain — <b>HD Merge</b> dabane par video+audio <b>aapke browser me merge</b> hoga (server free rehta hai). Pehli baar engine load hone me thoda time lagega.</div>` : "");
 }
 
 function pickFormats(q){
@@ -506,54 +515,185 @@ function pickFormats(q){
   });
 }
 
-/* ---------- download ---------- */
+/* ---------- download engine: 100% user device (CPU/RAM/bandwidth) ----------
+   1) Direct: browser khud media URL se fetch karke save karta hai (progress ke saath)
+   2) HD video-only: browser me ffmpeg.wasm se merge (user ka CPU)
+   3) Fallback: server relay / server merge (sirf jab browser CORS se block ho) */
 function wireDownloads(){
   document.addEventListener("click", onDocClick);
 }
 function onDocClick(e){
   const b = e.target.closest("[data-url]");
-  if(!b) return;
+  if(!b || b.disabled) return;
   const url = b.dataset.url;
   if(!url) return;
-  doDownload(url, b.dataset.name, b.dataset.ext, b);
+  doDownload(url, b.dataset.name, b.dataset.ext, b, b.dataset.formatId || "", b.dataset.type || "video");
 }
-async function doDownload(url, name, ext, btn){
-  const origText = btn ? btn.textContent : "";
-  if(btn){ btn.textContent = "Preparing..."; btn.disabled = true; }
-  try{
-    const filename = (name || "video") + "." + (ext || "mp4");
-    const streamUrl = API_BASE + "/api/stream?url=" + encodeURIComponent(url) + "&filename=" + encodeURIComponent(filename);
-    toast("Download shuru!", "ok");
-    const a = document.createElement("a");
-    a.href = streamUrl;
-    a.target = "_blank";
-    a.rel = "noopener";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }catch(err){
-    toast("Download error: " + (err.message || err), "err");
-    window.open(url, "_blank");
-  }finally{
-    if(btn){ btn.textContent = origText; btn.disabled = false; }
+
+function setProgress(btn, pct, label){
+  const row = btn.closest(".frow");
+  const bar = row ? row.querySelector(".pbar > i") : null;
+  if(bar) bar.style.width = Math.round(pct*100)+"%";
+  if(label) btn.textContent = label;
+  else if(pct > 0 && pct < 1) btn.textContent = Math.round(pct*100)+"%";
+}
+function resetRow(btn, text){
+  const row = btn.closest(".frow");
+  const bar = row ? row.querySelector(".pbar > i") : null;
+  if(bar) bar.style.width = "0";
+  btn.textContent = text;
+  btn.disabled = false;
+}
+
+async function fetchWithProgress(url, onProgress){
+  const res = await fetch(url);
+  if(!res.ok) throw new Error("HTTP " + res.status);
+  const total = parseInt(res.headers.get("Content-Length") || "0", 10);
+  if(!res.body || !res.body.getReader){
+    const blob = await res.blob();
+    if(onProgress) onProgress(1);
+    return blob;
   }
+  const reader = res.body.getReader();
+  const chunks = [];
+  let got = 0;
+  for(;;){
+    const {done, value} = await reader.read();
+    if(done) break;
+    chunks.push(value);
+    got += value.length;
+    if(total && onProgress) onProgress(got/total);
+  }
+  const type = res.headers.get("Content-Type") || "application/octet-stream";
+  return new Blob(chunks, {type});
 }
-async function getDownloadUrl(url){
+
+function saveBlob(blob, filename){
+  const o = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = o;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(o), 15000);
+}
+
+/* server relay fallback (sirf CORS-blocked hosts ke liye) */
+function serverRelay(url, filename){
+  const streamUrl = API_BASE + "/api/stream?url=" + encodeURIComponent(url) + "&filename=" + encodeURIComponent(filename);
+  const a = document.createElement("a");
+  a.href = streamUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+let _ff = null, _ffUtil = null;
+async function loadFFmpeg(btn){
+  if(_ff) return _ff;
+  setProgress(btn, 0.02, "Engine load...");
+  const [ffMod, utilMod] = await Promise.all([
+    import("https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/+esm"),
+    import("https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.2/+esm")
+  ]);
+  _ffUtil = utilMod;
+  const ff = new ffMod.FFmpeg();
+  ff.on("progress", ({progress})=>{
+    if(progress > 0 && progress <= 1) setProgress(btn, 0.7 + progress*0.28, "Merging " + Math.round(progress*100) + "%");
+  });
+  const base = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm";
+  await ff.load({
+    coreURL: await utilMod.toBlobURL(base + "/ffmpeg-core.js", "text/javascript"),
+    wasmURL: await utilMod.toBlobURL(base + "/ffmpeg-core.wasm", "application/wasm"),
+  });
+  _ff = ff;
+  return ff;
+}
+
+/* HD video-only + audio ko BROWSER me merge karo (user ka CPU/RAM) */
+async function browserMerge(videoUrl, vext, audioUrl, aext, filename, btn){
+  const ff = await loadFFmpeg(btn);
+  setProgress(btn, 0.05, "Video fetch...");
+  const vBlob = await fetchWithProgress(videoUrl, p=>setProgress(btn, 0.05 + p*0.4));
+  setProgress(btn, 0.48, "Audio fetch...");
+  const aBlob = await fetchWithProgress(audioUrl, p=>setProgress(btn, 0.48 + p*0.2));
+  const vName = "v." + (vext || "mp4").split("?")[0];
+  const aName = "a." + (aext || "m4a").split("?")[0];
+  await ff.writeFile(vName, new Uint8Array(await vBlob.arrayBuffer()));
+  await ff.writeFile(aName, new Uint8Array(await aBlob.arrayBuffer()));
+  const out = "out.mp4";
+  try{ await ff.deleteFile(out); }catch(e){}
+  setProgress(btn, 0.7, "Merging...");
+  let rc = await ff.exec(["-i", vName, "-i", aName, "-c", "copy", "-shortest", "-movflags", "+faststart", out]);
+  if(rc !== 0){
+    rc = await ff.exec(["-i", vName, "-i", aName, "-c:v", "copy", "-c:a", "aac", "-shortest", "-movflags", "+faststart", out]);
+  }
+  try{ await ff.deleteFile(vName); }catch(e){}
+  try{ await ff.deleteFile(aName); }catch(e){}
+  if(rc !== 0) throw new Error("merge-failed");
+  const data = await ff.readFile(out);
+  try{ await ff.deleteFile(out); }catch(e){}
+  saveBlob(new Blob([data.buffer], {type:"video/mp4"}), filename);
+}
+
+function fmtById(id){
+  return (currentFormats || []).find(f=>String(f.format_id) === String(id));
+}
+
+async function doDownload(url, name, ext, btn, formatId, type){
+  const origText = btn ? btn.textContent : "Download";
+  if(btn) btn.disabled = true;
+  const baseName = (name || "video");
   try{
-    const res = await fetchWithTimeout(API_BASE + "/api/download", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json", "Accept":"application/json" },
-      body: JSON.stringify({ url, referer: window.location.href })
-    }, 30000);
-    const text = await res.text();
-    if(!text) return url;
+    const fmt = formatId ? fmtById(formatId) : null;
+
+    /* CASE 1: video-only (DASH) -> browser me merge (user CPU) */
+    if(fmt && fmt.needs_merge){
+      const audio = (currentMeta && currentMeta.best_audio) || null;
+      if(!audio || !audio.url){
+        throw new Error("no-audio");
+      }
+      const filename = baseName + ".mp4";
+      toast("HD merge browser me ho raha hai (aapka CPU)...", "info");
+      try{
+        await browserMerge(fmt.url, fmt.ext, audio.url, audio.ext, filename, btn);
+        toast("HD video ready! Download complete.", "ok");
+        resetRow(btn, origText);
+        return;
+      }catch(merr){
+        console.warn("browser merge failed, server fallback:", merr);
+        toast("Browser merge fail — server merge try ho raha hai...", "info");
+        const originalUrl = urlInput.value.trim();
+        serverRelay(
+          API_BASE + "/api/merge-download?url=" + encodeURIComponent(originalUrl) +
+          "&filename=" + encodeURIComponent(baseName) + "&format_id=" + encodeURIComponent(formatId),
+          filename
+        );
+        resetRow(btn, origText);
+        return;
+      }
+    }
+
+    /* CASE 2: progressive video / audio / direct file -> seedha browser download */
+    const filename = baseName + "." + (ext || "mp4");
+    toast("Download aapke device pe ho raha hai...", "info");
+    if(btn) btn.textContent = "0%";
     try{
-      const json = JSON.parse(text);
-      return json.url || json.download_url || json.link || url;
-    }catch(e){}
-    return url;
-  }catch(e){
-    return url;
+      const blob = await fetchWithProgress(url, p=>setProgress(btn, p));
+      saveBlob(blob, filename);
+      toast("Download complete!", "ok");
+    }catch(derr){
+      console.warn("direct blocked (CORS), server relay:", derr);
+      toast("Direct blocked — server relay se download...", "info");
+      serverRelay(url, filename);
+    }
+    resetRow(btn, origText);
+  }catch(err){
+    resetRow(btn, origText);
+    toast("Download error: " + (err.message || err), "err");
+    window.open(url, "_blank", "noopener");
   }
 }
 
@@ -650,7 +790,7 @@ function renderDirect(isImg){
           <div class="fq">${escapeHtml(name)}</div>
           <div class="fsub">Direct link &middot; original quality</div>
         </div>
-        <button class="btn dl" data-url="${escapeAttr(url)}" data-name="${escapeAttr(cleanName(name))}" data-ext="${escapeAttr(name.split(".").pop()||"mp4")}">Download</button>
+        <button class="btn dl" data-url="${escapeAttr(url)}" data-name="${escapeAttr(cleanName(name))}" data-ext="${escapeAttr(name.split(".").pop()||"mp4")}" data-type="direct">Download</button>
       </div>
     </div>
   </div>`;
@@ -671,6 +811,13 @@ pasteBtn.addEventListener("click", async ()=>{
 });
 
 wireDownloads();
+
+/* PWA: installable app + offline shell */
+if("serviceWorker" in navigator && window.location.protocol !== "file:"){
+  window.addEventListener("load", ()=>{
+    navigator.serviceWorker.register("sw.js").catch(e=>console.warn("SW:", e));
+  });
+}
 </script>
 </body>
 </html>

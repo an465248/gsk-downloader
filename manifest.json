@@ -1,0 +1,19 @@
+{
+  "name": "gsk-downloader — Universal Video Downloader",
+  "short_name": "gsk-downloader",
+  "description": "Kisi bhi video URL se 4K se 144p tak download karo. Free, fast, no signup.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#070b18",
+  "theme_color": "#070b18",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

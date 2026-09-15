@@ -1,0 +1,7 @@
+# Render.com deploy (free tier OK — download user device pe hota hai)
+services:
+  - type: web
+    name: gsk-downloader
+    runtime: docker
+    healthCheckPath: /api/health
+    autoDeploy: true

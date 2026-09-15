@@ -2,4 +2,5 @@ __pycache__/
 *.pyc
 .env
 cookies.txt
+cookies_runtime.txt
 .vercel

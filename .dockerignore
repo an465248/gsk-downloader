@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.git/
+.env
+cookies.txt
+cookies_runtime.txt
+.venv/
+logo.png
+gsk.svg
+*.apk
+*.cap
+*.csv
+*.netxml
