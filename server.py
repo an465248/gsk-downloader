@@ -350,8 +350,8 @@ def _codec_rank(vcodec):
     return 0
 
 
-def _probe_mp4_tracks(url, timeout=4):
-    """MP4 ke pehle 300KB (Range) se (width, height, has_audio). Fail-soft.
+def _probe_mp4_tracks(url, timeout=5):
+    """MP4 ke pehle 1MB (Range) se (width, height, has_audio). Fail-soft.
 
     has_audio: True = audio track pakka hai, False = moov poora mila aur
     audio track NAHI hai (video-only file), None = pata nahi chala
@@ -359,14 +359,16 @@ def _probe_mp4_tracks(url, timeout=4):
     (FIX: Instagram music-reels ki video_versions files unknown-codec
     hote hue bhi video-ONLY hoti hain — bina verify direct download
     karne par BINA AAWAZ wali file milti thi.)
+    NOTE: Range 1MB tak — kuch IG files ka moov thoda aage hota hai,
+    300KB me 'moov' nahi milta tha aur silent-file pakdi nahi jati thi.
     """
     import struct
     try:
         req = urllib.request.Request(
             url, headers={"User-Agent": UA,
-                          "Range": "bytes=0-307199", "Accept": "*/*"})
+                          "Range": "bytes=0-1048575", "Accept": "*/*"})
         with urllib.request.urlopen(req, timeout=timeout) as res:
-            d = res.read(320000)
+            d = res.read(1100000)
         if len(d) < 128 or b"moov" not in d:
             return None
         pos, best = 0, None
@@ -443,14 +445,20 @@ def _probe_mp4_dims(url, timeout=4):
     return None
 
 
-def _fill_missing_heights(formats, limit=4):
+def _fill_missing_heights(formats, limit=6):
     """Height-missing/guessed entries (Facebook sd/hd) ki EXACT resolution
     + codec-unknown (FB/IG guess-progressive) entries me ASLI audio-track
     verify karo. Video-only nikle to merge-path par bhejo (audio-sahit),
     warna BINA AAWAZ download hota hai.
 
+    FIX (IG silent-reels): probe me video-only CONFIRM ho to HAMESHA
+    merge-path par bhejo — chahe alag audio-track list me dikhe ya na
+    dikhe. Pehle `has_any_audio` False hone par silent-file hi
+    ★1-Tap bankar milti thi. Ab needs_merge=True hoga to downloader
+    khud best audio-sahit file dega (fallback), silent file kabhi nahi.
+
     SPEED: probes PARALLEL (3 workers) — sequential me 2-3 entries par
-    10-20s lag jata tha, ab ~2-4s me ho jata hai. Har probe max ~4s.
+    10-20s lag jata tha, ab ~2-4s me ho jata hai. Har probe max ~5s.
     """
     try:
         has_any_audio = any((x.get("type") == "audio" and x.get("url"))
@@ -492,11 +500,11 @@ def _fill_missing_heights(formats, limit=4):
     if targets:
         try:
             with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
-                futs = {ex.submit(_probe_mp4_tracks, (c.get("url") or ""), 4): (c, nd)
+                futs = {ex.submit(_probe_mp4_tracks, (c.get("url") or ""), 5): (c, nd)
                         for c, nd in targets}
                 for fut, (c, need_dims) in futs.items():
                     try:
-                        d = fut.result(timeout=5)
+                        d = fut.result(timeout=6)
                     except Exception:
                         d = None
                     try:
@@ -505,13 +513,17 @@ def _fill_missing_heights(formats, limit=4):
                             if need_dims and w and h and min(w, h) > 0:
                                 c["height"] = min(w, h)
                                 c["label"] = "%dp" % min(w, h)
-                            # Video-only CONFIRM + alag audio maujood = merge-path
+                            # Video-only CONFIRM = merge-path (HAMESHA).
+                            # Alag audio ho to browser/server merge karega;
+                            # na ho to downloader fallback best 1-Tap dega.
                             # (direct download BINA AAWAZ deta — yahi asli bug tha).
                             if c.pop("_verify_audio", None):
-                                if ha is False and has_any_audio:
+                                if ha is False:
                                     c["progressive"] = False
                                     c["needs_merge"] = True
                                     c["one_tap"] = False
+                                    if not has_any_audio:
+                                        c["label"] = (c.get("label") or "") + " (audio-merge)"
                         else:
                             c.pop("_verify_audio", None)
                         c.pop("_guessed", None)
@@ -812,8 +824,14 @@ def _search_sync(query, limit=12):
                 dur = int(e.get("duration") or 0)
             except Exception:
                 dur = 0
+            try:
+                views = int(e.get("view_count") or 0)
+            except Exception:
+                views = 0
             out.append({"id": vid, "title": title, "url": url,
-                        "thumbnail": thumb, "duration": dur})
+                        "thumbnail": thumb, "duration": dur,
+                        "channel": e.get("channel") or e.get("uploader") or "",
+                        "views": views})
     except Exception:
         pass
     return {"results": out, "count": len(out)}

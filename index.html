@@ -187,6 +187,25 @@
 
   .hidden{display:none !important}
   .frac{color:#5b6a94;text-align:center;font-size:12px;margin-top:10px}
+
+  /* ===== Search (thumbnail + tap-play + copy/download) ===== */
+  .sbox{max-width:760px;margin:14px auto 0;background:var(--card);border:1px solid var(--line);border-radius:var(--rad);
+    padding:10px;display:flex;gap:10px;align-items:center}
+  .sbox input{flex:1;min-width:0;background:transparent;border:none;outline:none;color:#fff;font-size:14.5px;font-family:inherit;padding:10px 6px}
+  .sbox input::placeholder{color:#5b6a94}
+  #searchResults{display:none;margin:18px auto 0;max-width:760px}
+  .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:640px){.sgrid{grid-template-columns:1fr}}
+  .scard{background:#ffffff07;border:1px solid var(--line);border-radius:12px;overflow:hidden;cursor:pointer;transition:.2s}
+  .scard:hover{border-color:#22d3ee66}
+  .scard img{width:100%;aspect-ratio:16/9;object-fit:cover;background:#000;display:block}
+  .scard .st{padding:10px 12px}
+  .scard .stt{font-size:13px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .scard .stm{font-size:11px;color:var(--mut);margin-top:4px}
+  .scard .sbtns{display:flex;gap:6px;margin-top:8px}
+  .pv-tools{display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap}
+  #previewPlayer{object-fit:contain}
+  #previewPlayer.fs{max-height:80vh !important}
 </style>
 </head>
 <body>
@@ -228,6 +247,14 @@
       </button>
     </div>
     <p class="hint">Popular: <b>youtube.com</b> &middot; <b>twitter.com</b> &middot; <b>instagram.com</b> &middot; <b>tiktok.com</b> &middot; <b>facebook.com</b> &middot; <b>vimeo.com</b></p>
+
+    <!-- 🔍 Search: naam likho -> thumbnails aayenge -> tap karke direct play + copy/download -->
+    <div class="sbox">
+      <input id="searchInput" type="text" spellcheck="false" autocomplete="off"
+        placeholder="🔍 Video search karo... (e.g. arijit singh song)">
+      <button class="btn go" id="searchBtn" style="padding:12px 20px">Search</button>
+    </div>
+    <div id="searchResults"></div>
 
     <div class="stats">
       <div class="stat"><b>1,600+</b><span>Supported Websites</span></div>
@@ -553,7 +580,16 @@ function previewBlock(data, poster){
         <button class="btn mini" id="fwd10Btn">10s ⏩</button>
         <button class="btn mini" id="nextVideoBtn">Next ▶</button>
       </div>
-      <div class="frac">👆 Preview — ⏪10s/10s⏩ se skip karo, Next se bina link-copy agla video (low-quality stream${au ? ", audio ke saath" : ""})</div>
+      <div class="pv-tools">
+        <select id="pvQuality" class="mini btn" style="background:#ffffff0d" title="Preview quality (kitne pixel par dekhna hai)"></select>
+        <button class="btn mini" id="pvFsBtn" title="Fullscreen (YouTube jaisa)">⛶ Full</button>
+        <button class="btn mini" id="pvZoomBtn" title="Zoom: Fit / Crop / Stretch">🔍 Fit</button>
+        <button class="btn mini" id="pvZoomIn" title="Zoom-in">➕</button>
+        <button class="btn mini" id="pvZoomOut" title="Zoom-out">➖</button>
+        <button class="btn mini" id="pvCopyBtn" title="Is video ka link copy karo">📋 Copy</button>
+        <button class="btn mini" id="pvDlBtn" title="Neeche quality se download karo">⬇ Download</button>
+      </div>
+      <div class="frac">👆 Preview — quality chuno (kitne pixel par dekhna hai), ⛶ Full se fullscreen, 🔍/➕➖ se zoom-in/out. Screen dekhte time ON rahegi (wake-lock).</div>
       <div id="upNextBox"></div>
     </div>`;
 }
@@ -580,8 +616,9 @@ function loadRecentWeb(){
   catch(e){ return []; }
 }
 function upNextCardHTML(item, idx){
+  const th = item.thumbnail || "";
   return `<div class="frow" data-upnext="${idx}" style="cursor:pointer">
-    <div class="fic v">▶</div>
+    ${th ? `<img src="${escapeAttr(th)}" loading="lazy" onerror="this.style.display='none'" style="width:96px;height:54px;object-fit:cover;border-radius:8px;background:#000;flex:none">` : `<div class="fic v">▶</div>`}
     <div class="ftxt">
       <div class="fq" style="font-size:13px">${escapeHtml(item.title || "Video")}</div>
       <div class="fsub">${item.duration ? fmtDur(item.duration) : escapeHtml((item.url||"").slice(0,48))}</div>
@@ -626,7 +663,7 @@ function renderUpNextWeb(){
       <button class="btn mini" id="recentHideBtn" style="padding:5px 10px">✕ Band</button>
       <button class="btn mini" id="recentClearBtn" style="padding:5px 10px">🗑 Clear</button></div>
     <div style="display:grid;gap:8px;margin-top:8px">${rec.slice(0,6).map((it)=>`<div class="frow" data-recent="${escapeAttr(it.url)}" style="cursor:pointer">
-      <div class="fic v">↩</div>
+      ${it.thumb ? `<img src="${escapeAttr(it.thumb)}" loading="lazy" onerror="this.style.display='none'" style="width:96px;height:54px;object-fit:cover;border-radius:8px;background:#000;flex:none">` : `<div class="fic v">↩</div>`}
       <div class="ftxt"><div class="fq" style="font-size:13px">${escapeHtml(it.title || "Video")}</div>
       <div class="fsub">${escapeHtml((it.url||"").slice(0,52))}</div></div>
       <button class="btn mini" data-recent-del="${escapeAttr(it.url)}" title="Is item ko hatao" style="padding:5px 10px">✕</button></div>`).join("")}</div>`;
@@ -668,18 +705,108 @@ function renderUpNextWeb(){
 }
 function renderRecentWeb(){ renderUpNextWeb(); }
 
-/* Preview video + audio sync (video-only stream ke liye) + 10s skip + Prev/Next */
+/* Preview video + audio sync + 10s skip + Prev/Next + quality/zoom/fullscreen/wake-lock */
+let _wakeLock = null;
+async function reqWakeLock(){
+  try{
+    if("wakeLock" in navigator && !_wakeLock){
+      _wakeLock = await navigator.wakeLock.request("screen");
+      _wakeLock.addEventListener("release", ()=>{ _wakeLock = null; });
+    }
+  }catch(e){}
+}
+function relWakeLock(){ try{ if(_wakeLock){ _wakeLock.release(); _wakeLock = null; } }catch(e){} }
+let _pvZoomMode = 0; // 0=Fit(contain) 1=Crop(cover) 2=Stretch(fill)
+let _pvScale = 1;
+function applyPvZoom(){
+  const vp = document.getElementById("previewPlayer");
+  if(!vp) return;
+  const modes = ["contain", "cover", "fill"];
+  const labels = ["🔍 Fit", "🔍 Crop", "🔍 Stretch"];
+  vp.style.objectFit = modes[_pvZoomMode];
+  vp.style.transform = _pvScale > 1 ? `scale(${_pvScale})` : "";
+  vp.style.transformOrigin = "center center";
+  const zb = document.getElementById("pvZoomBtn");
+  if(zb) zb.textContent = labels[_pvZoomMode] + (_pvScale > 1 ? ` ${_pvScale.toFixed(1)}x` : "");
+}
+function fillPvQuality(){
+  const sel = document.getElementById("pvQuality");
+  const vp = document.getElementById("previewPlayer");
+  if(!sel || !vp) return;
+  try{
+    const vids = (currentFormats || []).filter(f=>f.type==="video" && f.url)
+      .sort((a,b)=> heightOf(b.label)-heightOf(a.label));
+    const seen = new Set();
+    const opts = [];
+    for(const f of vids){
+      const h = heightOf(f.label);
+      if(!h || seen.has(h)) continue;
+      seen.add(h);
+      // preview ke liye progressive prefer (audio-sahit, halkA)
+      const sameH = vids.filter(x=>heightOf(x.label)===h);
+      const prog = sameH.find(x=>x.progressive) || sameH[0];
+      opts.push({h, url: prog.url, prog: !!prog.progressive});
+      if(opts.length >= 6) break;
+    }
+    opts.sort((a,b)=>a.h-b.h);
+    const curH = heightOf((currentFormats||[]).find(f=>f.url===vp.src)?.label || "");
+    sel.innerHTML = opts.map(o=>
+      `<option value="${o.url}" data-prog="${o.prog?1:0}">${o.h}p${o.prog?"":" (no-audio)"}</option>`
+    ).join("");
+    // current preview se milta option select karo, warna sabse chhota
+    let selIdx = 0;
+    for(let i=0;i<opts.length;i++){ if(opts[i].url === vp.src){ selIdx = i; break; } }
+    sel.selectedIndex = selIdx;
+    sel.onchange = ()=>{
+      try{
+        const u = sel.value;
+        const t = vp.currentTime || 0;
+        const wasPlaying = !vp.paused;
+        vp.src = u;
+        vp.currentTime = t;
+        if(wasPlaying) vp.play().catch(()=>{});
+        const isProg = sel.options[sel.selectedIndex]?.dataset.prog === "1";
+        toast(isProg ? "Preview: " + sel.options[sel.selectedIndex].text + " (audio-sahit)" : "Preview: " + sel.options[sel.selectedIndex].text + " — audio alag track se", "info");
+      }catch(e){}
+    };
+  }catch(e){}
+}
 function wirePreviewSync(){
   const vp = document.getElementById("previewPlayer");
   const ap = document.getElementById("previewAudio");
   if(vp && ap){
-    vp.addEventListener("play", ()=>{ try{ ap.currentTime = vp.currentTime || 0; ap.play().catch(()=>{}); }catch(e){} });
-    vp.addEventListener("pause", ()=>{ try{ ap.pause(); }catch(e){} });
+    vp.addEventListener("play", ()=>{ try{ ap.currentTime = vp.currentTime || 0; ap.play().catch(()=>{}); }catch(e){} reqWakeLock(); });
+    vp.addEventListener("pause", ()=>{ try{ ap.pause(); }catch(e){} relWakeLock(); });
+    vp.addEventListener("ended", ()=>{ relWakeLock(); });
     vp.addEventListener("seeked", ()=>{ try{ ap.currentTime = vp.currentTime || 0; }catch(e){} });
     vp.addEventListener("timeupdate", ()=>{
       try{ if(!vp.paused && Math.abs((ap.currentTime||0) - (vp.currentTime||0)) > 0.35) ap.currentTime = vp.currentTime; }catch(e){}
     });
+  } else if(vp){
+    vp.addEventListener("play", ()=>reqWakeLock());
+    vp.addEventListener("pause", ()=>relWakeLock());
+    vp.addEventListener("ended", ()=>relWakeLock());
   }
+  // pinch-zoom (touch): 2 ungli se zoom-in/out
+  try{
+    let lastD = 0;
+    vp?.addEventListener("touchmove", (ev)=>{
+      if(ev.touches && ev.touches.length === 2){
+        const dx = ev.touches[0].clientX - ev.touches[1].clientX;
+        const dy = ev.touches[0].clientY - ev.touches[1].clientY;
+        const d = Math.hypot(dx, dy);
+        if(lastD > 0){
+          _pvScale = Math.min(3, Math.max(1, _pvScale * (d / lastD)));
+          applyPvZoom();
+        }
+        lastD = d;
+      }
+    }, {passive:true});
+    vp?.addEventListener("touchend", ()=>{ lastD = 0; }, {passive:true});
+    vp?.addEventListener("dblclick", ()=>{ _pvScale = 1; _pvZoomMode = 0; applyPvZoom(); });
+  }catch(e){}
+  fillPvQuality();
+  applyPvZoom();
   const seek = (d)=>{
     try{
       if(!vp){ toast("Pehle Preview play karo.", "info"); return; }
@@ -704,6 +831,27 @@ function wirePreviewSync(){
       const it = upNextList[upNextIndex + 1];
       urlInput.value = it.url; toast("Next video load ho raha...", "info"); start();
     } else toast("Up Next me agla video nahi (playlist link ho to aayega).", "info");
+  });
+  const fsB = document.getElementById("pvFsBtn");
+  if(fsB) fsB.addEventListener("click", ()=>{
+    try{
+      if(!vp){ toast("Pehle Preview play karo.", "info"); return; }
+      if(document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+      else if(vp.requestFullscreen) vp.requestFullscreen().catch(()=>{ vp.classList.toggle("fs"); });
+      else vp.classList.toggle("fs");
+    }catch(e){}
+  });
+  const zb = document.getElementById("pvZoomBtn");
+  if(zb) zb.addEventListener("click", ()=>{ _pvZoomMode = (_pvZoomMode+1)%3; applyPvZoom(); });
+  const zi = document.getElementById("pvZoomIn");
+  if(zi) zi.addEventListener("click", ()=>{ _pvScale = Math.min(3, +((_pvScale+0.25).toFixed(2))); applyPvZoom(); });
+  const zo = document.getElementById("pvZoomOut");
+  if(zo) zo.addEventListener("click", ()=>{ _pvScale = Math.max(1, +((_pvScale-0.25).toFixed(2))); applyPvZoom(); });
+  const cp = document.getElementById("pvCopyBtn");
+  if(cp) cp.addEventListener("click", ()=>copyLink());
+  const dl = document.getElementById("pvDlBtn");
+  if(dl) dl.addEventListener("click", ()=>{
+    try{ document.getElementById("flist")?.scrollIntoView({behavior:"smooth"}); toast("Neeche quality chuno aur Download dabao.", "info"); }catch(e){}
   });
 }
 
@@ -1261,6 +1409,71 @@ function renderDirect(isImg){
 /* ---------- events ---------- */
 goBtn.addEventListener("click", start);
 urlInput.addEventListener("keydown", e=>{ if(e.key==="Enter") start(); });
+
+/* ---------- 🔍 search: thumbnails + tap-play + copy/download ---------- */
+const searchInput = $("searchInput"), searchBtn = $("searchBtn"), searchBox = $("searchResults");
+async function doSearch(){
+  const q = (searchInput.value || "").trim();
+  if(!q){ toast("Search me kuch likho!", "err"); searchInput.focus(); return; }
+  searchBtn.disabled = true;
+  searchBtn.innerHTML = `<span class="spin"></span>`;
+  searchBox.style.display = "block";
+  searchBox.innerHTML = `<div style="color:var(--mut);font-size:13px;padding:8px 2px">Search ho raha: ${escapeHtml(q)} ...</div>`;
+  try{
+    const res = await fetchWithTimeout(API_BASE + "/api/search", {
+      method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ q, limit: 12 })
+    }, 30000);
+    const txt = await res.text();
+    let j = {};
+    try{ j = JSON.parse(txt); }catch(e){ throw new Error("Server response samajh nahi aaya."); }
+    if(!res.ok || j.error) throw new Error(j.error || ("Server error " + res.status));
+    const list = j.results || [];
+    if(!list.length){ searchBox.innerHTML = `<div style="color:var(--mut);font-size:13px">Kuch nahi mila — aur likh ke try karo.</div>`; return; }
+    searchBox.innerHTML = `<div style="font-weight:700;font-size:13.5px;margin:4px 0 10px">${list.length} results — tap karke direct play ▶, 📋 se copy, ⬇ se download</div>
+      <div class="sgrid">${list.map((it,i)=>`
+        <div class="scard" data-search="${i}">
+          <img loading="lazy" src="${escapeAttr(it.thumbnail || "")}" alt="" onerror="this.style.visibility='hidden'">
+          <div class="st">
+            <div class="stt">${escapeHtml(it.title || "Video")}</div>
+            <div class="stm">${escapeHtml(it.channel || "")}${it.channel?" • ":""}${it.duration?fmtDur(it.duration):""}</div>
+            <div class="sbtns">
+              <button class="btn mini" data-splay="${i}">▶ Play</button>
+              <button class="btn mini" data-scopy="${i}">📋 Copy</button>
+              <button class="btn mini" data-sdl="${i}">⬇ Get Video</button>
+            </div>
+          </div>
+        </div>`).join("")}</div>`;
+    searchBox.querySelectorAll("[data-splay]").forEach(b=>b.addEventListener("click", (ev)=>{
+      ev.stopPropagation();
+      const it = list[+b.dataset.splay];
+      if(it?.url){ urlInput.value = it.url; searchBox.style.display = "none"; toast("Video load ho raha...", "info"); start(); }
+    }));
+    searchBox.querySelectorAll("[data-scard], .scard").forEach(()=>{});
+    searchBox.querySelectorAll(".scard").forEach(card=>card.addEventListener("click", (ev)=>{
+      if(ev.target.closest("[data-scopy],[data-sdl],[data-splay]")) return;
+      const it = list[+card.dataset.search];
+      if(it?.url){ urlInput.value = it.url; searchBox.style.display = "none"; toast("Video load ho raha...", "info"); start(); }
+    }));
+    searchBox.querySelectorAll("[data-scopy]").forEach(b=>b.addEventListener("click", (ev)=>{
+      ev.stopPropagation();
+      const it = list[+b.dataset.scopy];
+      if(it?.url) navigator.clipboard.writeText(it.url).then(()=>toast("Link copy ✓", "ok")).catch(()=>prompt("Copy:", it.url));
+    }));
+    searchBox.querySelectorAll("[data-sdl]").forEach(b=>b.addEventListener("click", (ev)=>{
+      ev.stopPropagation();
+      const it = list[+b.dataset.sdl];
+      if(it?.url){ urlInput.value = it.url; searchBox.style.display = "none"; toast("Get Video + download...", "info"); start(); }
+    }));
+  }catch(err){
+    searchBox.innerHTML = `<div style="color:var(--red);font-size:13px">Search error: ${escapeHtml(err.message || err)}</div>`;
+  }finally{
+    searchBtn.disabled = false;
+    searchBtn.textContent = "Search";
+  }
+}
+if(searchBtn) searchBtn.addEventListener("click", doSearch);
+if(searchInput) searchInput.addEventListener("keydown", e=>{ if(e.key==="Enter") doSearch(); });
 
 pasteBtn.addEventListener("click", async ()=>{
   try{
