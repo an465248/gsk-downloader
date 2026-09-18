@@ -498,41 +498,42 @@ def _fill_missing_heights(formats, limit=6):
                 pass
             continue
     if targets:
+        ex = None
         try:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
-                futs = {ex.submit(_probe_mp4_tracks, (c.get("url") or ""), 5): (c, nd)
+            ex = concurrent.futures.ThreadPoolExecutor(max_workers=3)
+            futs = {ex.submit(_probe_mp4_tracks, (c.get("url") or ""), 3): (c, nd)
                         for c, nd in targets}
-                for fut, (c, need_dims) in futs.items():
+            for fut, (c, need_dims) in futs.items():
+                try:
+                    d = fut.result(timeout=4)
+                except Exception:
+                    d = None
+                try:
+                    if d:
+                        w, h, ha = d
+                        if need_dims and w and h and min(w, h) > 0:
+                            c["height"] = min(w, h)
+                            c["label"] = "%dp" % min(w, h)
+                        # Video-only CONFIRM = merge-path (HAMESHA).
+                        # Alag audio ho to browser/server merge karega;
+                        # na ho to downloader fallback best 1-Tap dega.
+                        # (direct download BINA AAWAZ deta — yahi asli bug tha).
+                        if c.pop("_verify_audio", None):
+                            if ha is False:
+                                c["progressive"] = False
+                                c["needs_merge"] = True
+                                c["one_tap"] = False
+                                if not has_any_audio:
+                                    c["label"] = (c.get("label") or "") + " (audio-merge)"
+                    else:
+                        c.pop("_verify_audio", None)
+                    c.pop("_guessed", None)
+                except Exception:
                     try:
-                        d = fut.result(timeout=6)
-                    except Exception:
-                        d = None
-                    try:
-                        if d:
-                            w, h, ha = d
-                            if need_dims and w and h and min(w, h) > 0:
-                                c["height"] = min(w, h)
-                                c["label"] = "%dp" % min(w, h)
-                            # Video-only CONFIRM = merge-path (HAMESHA).
-                            # Alag audio ho to browser/server merge karega;
-                            # na ho to downloader fallback best 1-Tap dega.
-                            # (direct download BINA AAWAZ deta — yahi asli bug tha).
-                            if c.pop("_verify_audio", None):
-                                if ha is False:
-                                    c["progressive"] = False
-                                    c["needs_merge"] = True
-                                    c["one_tap"] = False
-                                    if not has_any_audio:
-                                        c["label"] = (c.get("label") or "") + " (audio-merge)"
-                        else:
-                            c.pop("_verify_audio", None)
+                        c.pop("_verify_audio", None)
                         c.pop("_guessed", None)
                     except Exception:
-                        try:
-                            c.pop("_verify_audio", None)
-                            c.pop("_guessed", None)
-                        except Exception:
-                            pass
+                        pass
         except Exception:
             for c, _nd in targets:
                 try:
@@ -540,6 +541,12 @@ def _fill_missing_heights(formats, limit=6):
                     c.pop("_guessed", None)
                 except Exception:
                     pass
+        finally:
+            try:
+                if ex is not None:
+                    ex.shutdown(wait=False, cancel_futures=True)
+            except Exception:
+                pass
     try:
         formats.sort(key=lambda x: (1 if x.get("progressive") else 0,
                                     x.get("height") or 0, x.get("tbr") or 0),
@@ -998,12 +1005,20 @@ async def extract(request: Request):
         return JSONResponse({"error": "Video info nahi mila"}, status_code=400)
 
     # Up-Next: speculative flat-task ka result uthao (pehle se chal raha tha)
+    # FAIL-FAST (live fix): 4s me na aaye to khaali — main video turant do.
+    # Pehle `await flat_task` bina timeout tha = playlist/channel slow hone
+    # par poora /api/extract wahin atka rehta tha ("fetch par atka").
     playlist_entries, playlist_title, playlist_count = [], "", 0
     if flat_task is not None:
         try:
-            pinfo = await flat_task
+            pinfo = await asyncio.wait_for(flat_task, timeout=4)
         except Exception:
             pinfo = None
+            try:
+                if not flat_task.done():
+                    flat_task.cancel()
+            except Exception:
+                pass
         try:
             playlist_entries, playlist_title, playlist_count = \
                 _flat_entries_from_pinfo(pinfo, url)
@@ -1030,6 +1045,7 @@ async def extract(request: Request):
 
     # Single YouTube video ho (playlist entries nahi mili) to Related videos
     # nikalo — speculative task pehle se chal raha tha, bas result uthao.
+    # FAIL-FAST: Related ke liye main response ko 10s+ mat roko (max ~4s).
     if not playlist_entries and info.get("_type") != "playlist":
         try:
             ext = (info.get("extractor") or "").lower()
@@ -1037,9 +1053,14 @@ async def extract(request: Request):
                 rel = None
                 if rel_task is not None and spec_vid and spec_vid == info.get("id"):
                     try:
-                        rel = await rel_task
+                        rel = await asyncio.wait_for(rel_task, timeout=4)
                     except Exception:
                         rel = None
+                        try:
+                            if not rel_task.done():
+                                rel_task.cancel()
+                        except Exception:
+                            pass
                 if rel is None:
                     # speculative id match nahi hua — purana task hatao, fresh nikalo
                     try:
@@ -1047,7 +1068,12 @@ async def extract(request: Request):
                             rel_task.cancel()
                     except Exception:
                         pass
-                    rel = await asyncio.to_thread(_youtube_related_sync, info.get("id"), 15)
+                    try:
+                        rel = await asyncio.wait_for(
+                            asyncio.to_thread(_youtube_related_sync, info.get("id"), 15),
+                            timeout=7)
+                    except Exception:
+                        rel = []
                 if rel:
                     playlist_entries, playlist_title, playlist_count = (
                         rel, "Related videos", len(rel))
@@ -1129,8 +1155,9 @@ async def extract(request: Request):
         )
     # Facebook sd/hd ki EXACT resolution probe karo (label sahi aaye).
     # to_thread me — event-loop block na ho (parallel probes, ~2-4s).
+    # FAIL-FAST: probe me atke to video rokna nahi — max 10s.
     try:
-        await asyncio.to_thread(_fill_missing_heights, formats)
+        await asyncio.wait_for(asyncio.to_thread(_fill_missing_heights, formats), timeout=10)
     except Exception:
         pass
 

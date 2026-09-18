@@ -419,7 +419,7 @@ async function extract(url){
     method:"POST",
     headers:{ "Content-Type":"application/json", "Accept":"application/json" },
     body: JSON.stringify({ url })
-  }, 30000);
+  }, 60000);
   const text = await res.text();
   if(!text){ throw new Error("Server se koi response nahi aaya (empty reply). Thoda ruk kar dobara try karo."); }
   let json;
@@ -1430,7 +1430,7 @@ async function doSearch(){
     const res = await fetchWithTimeout(API_BASE + "/api/search", {
       method:"POST", headers:{ "Content-Type":"application/json" },
       body: JSON.stringify({ q, limit: 12 })
-    }, 30000);
+    }, 60000);
     const txt = await res.text();
     let j = {};
     try{ j = JSON.parse(txt); }catch(e){ throw new Error("Server response samajh nahi aaya."); }
