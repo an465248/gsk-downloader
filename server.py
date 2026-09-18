@@ -762,6 +762,83 @@ def health():
     }
 
 
+def _search_sync(query, limit=12):
+    """YouTube search (Watch-tab). Blocking — caller thread me chalao."""
+    q = (query or "").strip()
+    if not q:
+        return {"error": "Search text khaali hai."}
+    try:
+        limit = max(1, min(int(limit or 12), 25))
+    except Exception:
+        limit = 12
+    fopts = dict(base_ydl_opts())
+    fopts.update({
+        "skip_download": True,
+        "extract_flat": True,
+        "socket_timeout": 10,
+    })
+    # NOTE: custom UA par YouTube search khaali milta hai — default UA rakho.
+    try:
+        fopts.pop("http_headers", None)
+    except Exception:
+        pass
+    try:
+        with yt_dlp.YoutubeDL(fopts) as ydl:
+            info = ydl.extract_info("ytsearch%d:%s" % (limit, q), download=False)
+    except Exception as e:  # noqa: BLE001
+        return {"error": friendly_error(e)}
+    out = []
+    try:
+        for e in (info.get("entries") or [])[:limit]:
+            if not isinstance(e, dict):
+                continue
+            vid = e.get("id") or ""
+            if not vid:
+                continue
+            url = e.get("url") or e.get("webpage_url") or ""
+            if not url or not url.startswith("http"):
+                url = "https://www.youtube.com/watch?v=" + vid
+            title = e.get("title") or vid
+            thumb = ""
+            try:
+                ths = e.get("thumbnails") or []
+                if ths:
+                    thumb = (ths[-1] or {}).get("url") or ""
+            except Exception:
+                pass
+            if not thumb:
+                thumb = "https://i.ytimg.com/vi/%s/hqdefault.jpg" % vid
+            try:
+                dur = int(e.get("duration") or 0)
+            except Exception:
+                dur = 0
+            out.append({"id": vid, "title": title, "url": url,
+                        "thumbnail": thumb, "duration": dur})
+    except Exception:
+        pass
+    return {"results": out, "count": len(out)}
+
+
+@app.post("/api/search")
+async def api_search(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid request body"}, status_code=400)
+    q = ((body.get("q") or body.get("query") or "")).strip()
+    if not q:
+        return JSONResponse({"error": "Search text khaali hai."}, status_code=400)
+    try:
+        limit = int(body.get("limit") or 12)
+    except Exception:
+        limit = 12
+    try:
+        res = await asyncio.to_thread(_search_sync, q, limit)
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"error": friendly_error(e)})
+    return JSONResponse(res)
+
+
 def _flat_entries_from_pinfo(pinfo, url):
     """Flat playlist info -> Up-Next entries. Fail -> khaali."""
     out, title, count = [], "", 0
