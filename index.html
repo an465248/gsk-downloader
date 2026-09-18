@@ -490,25 +490,7 @@ function renderInfo(data){
   // render formats directly into flist
   box.innerHTML = html;
   $("flist").innerHTML = renderFormats();
-  // HLS/special sites (1600+ wada): server ffmpeg se mp4 — extra 1-tap row
-  try{
-    const hls = data.hls || [];
-    if(hls.length){
-      const page0 = data.webpage_url || urlInput.value.trim();
-      const dl = API_BASE + "/api/server-download?page=" + encodeURIComponent(page0) +
-        "&filename=" + encodeURIComponent((data.title || "video") + " - Server HD.mp4");
-      $("flist").innerHTML += `
-      <div class="frow sel">
-        <div class="fic v">HD</div>
-        <div class="ftxt">
-          <div class="fq">🌐 Server HD <span style="font-weight:400;color:var(--mut);font-size:12px;margin-left:4px">(HLS → MP4)</span></div>
-          <div class="fsub">MP4 &middot; server banakar dega, download seedha phone par</div>
-        </div>
-        <a class="btn dl" href="${escapeAttr(dl)}" download>Download</a>
-      </div>
-      <div class="merge-note">Ye site HLS-only stream deti hai — <b>Server HD</b> dabao, server mp4 banakar dega.</div>`;
-    }
-  }catch(e){}
+  appendHlsRow();
   // Up-Next (playlist — preview me hi Next, bina link copy) + Recent
   upNextList = data.playlist || [];
   playlistTitle = data.playlist_title || "";
@@ -538,11 +520,36 @@ function renderInfo(data){
       p.classList.add("on");
       selectedQ = p.dataset.q;
       $("flist").innerHTML = renderFormats();
+      appendHlsRow();
       toast("Quality: " + p.textContent.trim(), "info");
     });
   });
   $("copyInfoBtn").addEventListener("click", copyLink);
   $("debugBtn").addEventListener("click", showDebug);
+}
+
+/* HLS-only sites: server-ffmpeg row. BUG-FIX: pehle quality pill badalte hi
+   ye row gayab ho jati thi (flist re-render me ud jati thi) — ab har
+   re-render ke baad dobara lagti hai. */
+function appendHlsRow(){
+  try{
+    const data = currentMeta || {};
+    const hls = data.hls || [];
+    if(!hls.length) return;
+    const page0 = data.webpage_url || (urlInput.value || "").trim();
+    const dl = API_BASE + "/api/server-download?page=" + encodeURIComponent(page0) +
+      "&filename=" + encodeURIComponent((data.title || "video") + " - Server HD.mp4");
+    $("flist").innerHTML += `
+    <div class="frow sel">
+      <div class="fic v">HD</div>
+      <div class="ftxt">
+        <div class="fq">🌐 Server HD <span style="font-weight:400;color:var(--mut);font-size:12px;margin-left:4px">(HLS → MP4)</span></div>
+        <div class="fsub">MP4 &middot; server banakar dega, download seedha phone par</div>
+      </div>
+      <a class="btn dl" href="${escapeAttr(dl)}" download>Download</a>
+    </div>
+    <div class="merge-note">Ye site HLS-only stream deti hai — <b>Server HD</b> dabao, server mp4 banakar dega.</div>`;
+  }catch(e){}
 }
 
 function previewBlock(data, poster){
@@ -1449,7 +1456,6 @@ async function doSearch(){
       const it = list[+b.dataset.splay];
       if(it?.url){ urlInput.value = it.url; searchBox.style.display = "none"; toast("Video load ho raha...", "info"); start(); }
     }));
-    searchBox.querySelectorAll("[data-scard], .scard").forEach(()=>{});
     searchBox.querySelectorAll(".scard").forEach(card=>card.addEventListener("click", (ev)=>{
       if(ev.target.closest("[data-scopy],[data-sdl],[data-splay]")) return;
       const it = list[+card.dataset.search];
