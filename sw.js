@@ -1,5 +1,5 @@
 /* gsk-downloader service worker: app shell offline, API hamesha network */
-const CACHE = "gsk-v1";
+const CACHE = "gsk-v2";
 const SHELL = ["/", "/manifest.json", "/icon.svg"];
 
 self.addEventListener("install", (e) => {

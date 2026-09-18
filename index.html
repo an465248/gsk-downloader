@@ -274,12 +274,16 @@
         <p>Haan! Jab tak source video 4K/8K available karti hai, aap 4K (2160p) ya usse upar bhi download kar sakte ho. Chhote devices ke liye 144p tak bhi option milta hai.</p></details>
       <details class="qa"><summary>Kya yeh app 100% free hai?<span class="ar">+</span></summary>
         <p>Haan, bilkul free. Na sign-up, na pese, na limits. Sirf apna URL paste karo aur download karo.</p></details>
-      <details class="qa"><summary>Kya main sirf audio (MP3) download kar sakta hoon?<span class="ar">+</span></summary>
-        <p>Haan. "MP3" quality chuno — app audio-only format download karega, YouTube videos ka music easily save karne ke liye perfect.</p></details>
+      <details class="qa"><summary>Kya main sirf audio download kar sakta hoon?<span class="ar">+</span></summary>
+        <p>Haan. "🎵 Audio" quality chuno — app audio-only format download karega. File original format (m4a/webm) me save hoti hai jo har music player me bajti hai.</p></details>
       <details class="qa"><summary>Private / copyrighted videos par kya?<span class="ar">+</span></summary>
         <p>Sirf public aur freely available content download hota hai. Private, age-restricted ya login-required content nahi. Download sirf un content ke liye karo jinke malik ho ya use karne ki permission ho. Copyright ka dhyaan rakho.</p></details>
+      <details class="qa"><summary>Instagram fail / Facebook sirf 360p kyun?<span class="ar">+</span></summary>
+        <p>Facebook public videos (SD+HD, exact quality) <b>bina login</b> chalti hain. Instagram ka login-wall sakht hai — website par admin ek baar server cookies dalega to sab users bina-login download karenge; Android APK me <b>🌐 Server</b> button me apna server URL dalo (best — kuch nahi karna padega) ya <b>IG Login</b> se ek baar apne account se login karo. Private videos me hamesha login lagega.</p></details>
+      <details class="qa"><summary>Preview me 10s skip / Next video kaise?<span class="ar">+</span></summary>
+        <p>Preview ke neeche <b>⏪ 10s / 10s ⏩</b> dabao — aage-peeche skip karo. Har video ke neeche <b>Up Next</b> me Related videos dikhte hain (single video par bhi) — tap karo ya <b>Prev/Next</b> dabao, bina link copy agla video khul jayega. Playlist/Channel link ho to uski poori list aati hai. Recent videos bhi tap karke dobara khul jati hain.</p></details>
       <details class="qa"><summary>Download button dabane par kya hoga?<span class="ar">+</span></summary>
-        <p>File <b>seedha aapke device par download</b> hoti hai — server par load nahi padta, isliye speed aapke net jaisi full milti hai. HD/4K (video-only) quality par <b>HD Merge</b> button aata hai jo video+audio aapke browser me hi jodta hai.</p></details>
+        <p>Download <b>seedha aapke phone ke Download Manager me</b> start hota hai — <b>📲 notification bar me % progress aur speed</b> dikhti hai (bilkul VidMate jaisi), wahan se pause/resume bhi kar sakte ho. <b>★1-Tap</b> quality ek hi file me audio-sahit milti hai (kabhi fail nahi). <b>1-Tap HD</b> (1080p/4K) ek hi press me video+audio jod kar deta hai — merge fail ho to app khud 1-Tap quality de deta hai.</p></details>
     </div>
   </section>
 </main>
@@ -388,7 +392,7 @@ async function extract(url){
     method:"POST",
     headers:{ "Content-Type":"application/json", "Accept":"application/json" },
     body: JSON.stringify({ url })
-  }, 60000);
+  }, 30000);
   const text = await res.text();
   if(!text){ throw new Error("Server se koi response nahi aaya (empty reply). Thoda ruk kar dobara try karo."); }
   let json;
@@ -440,6 +444,7 @@ function renderInfo(data){
         </div>
       </div>
     </div>
+    ${ previewBlock(data, poster) }
     <div class="qbar">
       <span class="ql">Quality:</span>
       <button class="pill best on" data-q="max">MAX</button>
@@ -452,12 +457,52 @@ function renderInfo(data){
       <button class="pill" data-q="360">360p</button>
       <button class="pill" data-q="240">240p</button>
       <button class="pill" data-q="144">144p</button>
-      <button class="pill" data-q="audio">MP3 / Audio</button>
+      <button class="pill" data-q="audio">🎵 Audio</button>
     </div>
     <div class="flist" id="flist">${ escapeHtml("") }</div>`; // placeholder replaced below
   // render formats directly into flist
   box.innerHTML = html;
   $("flist").innerHTML = renderFormats();
+  // HLS/special sites (1600+ wada): server ffmpeg se mp4 — extra 1-tap row
+  try{
+    const hls = data.hls || [];
+    if(hls.length){
+      const page0 = data.webpage_url || urlInput.value.trim();
+      const dl = API_BASE + "/api/server-download?page=" + encodeURIComponent(page0) +
+        "&filename=" + encodeURIComponent((data.title || "video") + " - Server HD.mp4");
+      $("flist").innerHTML += `
+      <div class="frow sel">
+        <div class="fic v">HD</div>
+        <div class="ftxt">
+          <div class="fq">🌐 Server HD <span style="font-weight:400;color:var(--mut);font-size:12px;margin-left:4px">(HLS → MP4)</span></div>
+          <div class="fsub">MP4 &middot; server banakar dega, download seedha phone par</div>
+        </div>
+        <a class="btn dl" href="${escapeAttr(dl)}" download>Download</a>
+      </div>
+      <div class="merge-note">Ye site HLS-only stream deti hai — <b>Server HD</b> dabao, server mp4 banakar dega.</div>`;
+    }
+  }catch(e){}
+  // Up-Next (playlist — preview me hi Next, bina link copy) + Recent
+  upNextList = data.playlist || [];
+  playlistTitle = data.playlist_title || "";
+  const curUrl = data.webpage_url || urlInput.value.trim();
+  upNextIndex = -1;
+  try{
+    for(let i=0;i<upNextList.length;i++){
+      if(upNextList[i].url === curUrl || (upNextList[i].id && curUrl.includes(upNextList[i].id))){ upNextIndex = i; break; }
+    }
+  }catch(e){}
+  renderUpNextWeb();
+  try{ pushRecentWeb({title: data.title || "Video", url: curUrl, thumb: data.thumbnail || ""}); }catch(e){}
+  // Facebook me HD na mile (sirf SD) to wajah batao
+  try{
+    const srcL = String(data.source || "").toLowerCase();
+    const maxH = Math.max(0, ...currentFormats.filter(f=>f.type==="video").map(f=>heightOf(f.label)));
+    if((srcL.includes("facebook") || srcL.includes("fb")) && maxH > 0 && maxH <= 360){
+      toast("Is Facebook video me HD nahi mila (uploader ne SD dala ya post private hai).", "info");
+    }
+  }catch(e){}
+  wirePreviewSync();
 
   // wire quality pills
   document.querySelectorAll(".pill").forEach(p=>{
@@ -473,6 +518,195 @@ function renderInfo(data){
   $("debugBtn").addEventListener("click", showDebug);
 }
 
+function previewBlock(data, poster){
+  // Link paste -> video preview: pehle server ka preview_url, nahi to progressive format.
+  // YouTube par preview aksar video-only hota hai -> alag audio track sync karke bajayenge.
+  let pv = (data && data.preview_url) || "";
+  let hasAudio = !!(data && data.preview_has_audio);
+  if(!pv){
+    // Fallback: sabse CHHOTA progressive (halka preview, turant chale).
+    // .find() mat use karo — list best-first sort hoti hai, find() sabse BADA dega.
+    const progList = (currentFormats || []).filter(f=>f.progressive && f.url)
+      .sort((a,b)=> heightOf(a.label)-heightOf(b.label) || (a.tbr||0)-(b.tbr||0));
+    if(progList.length){ pv = progList[0].url; hasAudio = true; }
+    else {
+      const vids = (currentFormats || []).filter(f=>f.type==="video" && f.url)
+        .sort((a,b)=> heightOf(a.label)-heightOf(b.label));
+      if(vids.length) pv = vids[0].url;
+    }
+  }
+  if(!pv) return "";
+  let au = "";
+  if(!hasAudio){
+    const a = compatAudio({ext:"mp4"});
+    if(a && a.url) au = a.url;
+  }
+  return `
+    <div style="padding:0 20px 12px">
+      <video id="previewPlayer" controls preload="metadata" playsinline
+        poster="${escapeHtml(poster || "")}" src="${escapeAttr(pv)}"
+        style="width:100%;max-height:320px;border-radius:12px;background:#000;border:1px solid var(--line)"></video>
+      ${ au ? `<audio id="previewAudio" preload="metadata" src="${escapeAttr(au)}"></audio>` : "" }
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap">
+        <button class="btn mini" id="prevVideoBtn">◀ Prev</button>
+        <button class="btn mini" id="back10Btn">⏪ 10s</button>
+        <button class="btn mini" id="fwd10Btn">10s ⏩</button>
+        <button class="btn mini" id="nextVideoBtn">Next ▶</button>
+      </div>
+      <div class="frac">👆 Preview — ⏪10s/10s⏩ se skip karo, Next se bina link-copy agla video (low-quality stream${au ? ", audio ke saath" : ""})</div>
+      <div id="upNextBox"></div>
+    </div>`;
+}
+
+/* Up-Next (playlist) + Recent (bina link copy) — web */
+let upNextList = [];
+let upNextIndex = -1;
+let playlistTitle = "";
+function pushRecentWeb(item){
+  try{
+    const k = "gsk_recent";
+    let arr = [];
+    try{ arr = JSON.parse(localStorage.getItem(k) || "[]"); }catch(e){ arr = []; }
+    arr = arr.filter(x=>x && x.url !== item.url);
+    arr.unshift(item);
+    arr = arr.slice(0, 15);
+    localStorage.setItem(k, JSON.stringify(arr));
+    try{ localStorage.removeItem("gsk_recent_hidden"); }catch(e){}
+    renderRecentWeb();
+  }catch(e){}
+}
+function loadRecentWeb(){
+  try{ return JSON.parse(localStorage.getItem("gsk_recent") || "[]"); }
+  catch(e){ return []; }
+}
+function upNextCardHTML(item, idx){
+  return `<div class="frow" data-upnext="${idx}" style="cursor:pointer">
+    <div class="fic v">▶</div>
+    <div class="ftxt">
+      <div class="fq" style="font-size:13px">${escapeHtml(item.title || "Video")}</div>
+      <div class="fsub">${item.duration ? fmtDur(item.duration) : escapeHtml((item.url||"").slice(0,48))}</div>
+    </div>
+  </div>`;
+}
+function delRecentWeb(url){
+  try{
+    const k = "gsk_recent";
+    let arr = [];
+    try{ arr = JSON.parse(localStorage.getItem(k) || "[]"); }catch(e){ arr = []; }
+    arr = arr.filter(x=>x && x.url !== url);
+    localStorage.setItem(k, JSON.stringify(arr));
+    renderRecentWeb();
+  }catch(e){}
+}
+function clearRecentWeb(){
+  try{ localStorage.setItem("gsk_recent", "[]"); }catch(e){}
+  try{ localStorage.setItem("gsk_recent_hidden", "1"); }catch(e){}
+  renderRecentWeb();
+  toast("Recent clear + band kar diya.", "info");
+}
+function showRecentWeb(){
+  try{ localStorage.removeItem("gsk_recent_hidden"); }catch(e){}
+  renderRecentWeb();
+}
+function isRecentHiddenWeb(){
+  try{ return localStorage.getItem("gsk_recent_hidden") === "1"; }catch(e){ return false; }
+}
+function renderUpNextWeb(){
+  const box = document.getElementById("upNextBox");
+  if(!box) return;
+  const rec = loadRecentWeb();
+  let html = "";
+  if(upNextList && upNextList.length){
+    html += `<div style="margin-top:12px;font-weight:700;font-size:13.5px">Up Next${playlistTitle ? " • " + escapeHtml(playlistTitle) : ""} (${upNextList.length}) — tap karo, link copy nahi</div>
+    <div style="display:grid;gap:8px;margin-top:8px">${upNextList.map((it,i)=>upNextCardHTML(it,i)).join("")}</div>`;
+  }
+  if(rec && rec.length && !isRecentHiddenWeb()){
+    html += `<div style="margin-top:12px;font-weight:700;font-size:13.5px;display:flex;align-items:center;gap:8px">🕘 Recent — tap karke dobara kholo
+      <span style="flex:1"></span>
+      <button class="btn mini" id="recentHideBtn" style="padding:5px 10px">✕ Band</button>
+      <button class="btn mini" id="recentClearBtn" style="padding:5px 10px">🗑 Clear</button></div>
+    <div style="display:grid;gap:8px;margin-top:8px">${rec.slice(0,6).map((it)=>`<div class="frow" data-recent="${escapeAttr(it.url)}" style="cursor:pointer">
+      <div class="fic v">↩</div>
+      <div class="ftxt"><div class="fq" style="font-size:13px">${escapeHtml(it.title || "Video")}</div>
+      <div class="fsub">${escapeHtml((it.url||"").slice(0,52))}</div></div>
+      <button class="btn mini" data-recent-del="${escapeAttr(it.url)}" title="Is item ko hatao" style="padding:5px 10px">✕</button></div>`).join("")}</div>`;
+  }
+  box.innerHTML = html;
+  box.querySelectorAll("[data-upnext]").forEach(el=>{
+    el.addEventListener("click", ()=>{
+      const it = upNextList[parseInt(el.dataset.upnext)];
+      if(it && it.url){ urlInput.value = it.url; toast("Next video load ho raha...", "info"); start(); }
+    });
+  });
+  box.querySelectorAll("[data-recent]").forEach(el=>{
+    el.addEventListener("click", (ev)=>{
+      // row ke ✕ par click ho to kholo mat — sirf hatao
+      if(ev.target && ev.target.closest && ev.target.closest("[data-recent-del]")) return;
+      urlInput.value = el.dataset.recent; toast("Recent video load ho raha...", "info"); start();
+    });
+  });
+  box.querySelectorAll("[data-recent-del]").forEach(el=>{
+    el.addEventListener("click", (ev)=>{
+      ev.stopPropagation();
+      delRecentWeb(el.dataset.recentDel);
+      toast("Recent se hataya.", "info");
+    });
+  });
+  const hideB = document.getElementById("recentHideBtn");
+  if(hideB) hideB.addEventListener("click", ()=>{
+    try{ localStorage.setItem("gsk_recent_hidden", "1"); }catch(e){}
+    renderRecentWeb();
+    toast("Recent band kar diya.", "info");
+  });
+  const clearB = document.getElementById("recentClearBtn");
+  if(clearB) clearB.addEventListener("click", ()=>clearRecentWeb());
+  const pv = upNextIndex >= 0 ? upNextList[upNextIndex] : null;
+  const prevB = document.getElementById("prevVideoBtn");
+  const nextB = document.getElementById("nextVideoBtn");
+  if(prevB) prevB.disabled = !(upNextList.length && upNextIndex > 0);
+  if(nextB) nextB.disabled = !(upNextList.length && upNextIndex >= 0 && upNextIndex < upNextList.length - 1);
+}
+function renderRecentWeb(){ renderUpNextWeb(); }
+
+/* Preview video + audio sync (video-only stream ke liye) + 10s skip + Prev/Next */
+function wirePreviewSync(){
+  const vp = document.getElementById("previewPlayer");
+  const ap = document.getElementById("previewAudio");
+  if(vp && ap){
+    vp.addEventListener("play", ()=>{ try{ ap.currentTime = vp.currentTime || 0; ap.play().catch(()=>{}); }catch(e){} });
+    vp.addEventListener("pause", ()=>{ try{ ap.pause(); }catch(e){} });
+    vp.addEventListener("seeked", ()=>{ try{ ap.currentTime = vp.currentTime || 0; }catch(e){} });
+    vp.addEventListener("timeupdate", ()=>{
+      try{ if(!vp.paused && Math.abs((ap.currentTime||0) - (vp.currentTime||0)) > 0.35) ap.currentTime = vp.currentTime; }catch(e){}
+    });
+  }
+  const seek = (d)=>{
+    try{
+      if(!vp){ toast("Pehle Preview play karo.", "info"); return; }
+      vp.currentTime = Math.max(0, (vp.currentTime || 0) + d);
+      if(ap) ap.currentTime = vp.currentTime;
+    }catch(e){}
+  };
+  const b10 = document.getElementById("back10Btn");
+  const f10 = document.getElementById("fwd10Btn");
+  if(b10) b10.addEventListener("click", ()=>seek(-10));
+  if(f10) f10.addEventListener("click", ()=>seek(10));
+  const pvB = document.getElementById("prevVideoBtn");
+  const nxB = document.getElementById("nextVideoBtn");
+  if(pvB) pvB.addEventListener("click", ()=>{
+    if(upNextList.length && upNextIndex > 0){
+      const it = upNextList[upNextIndex - 1];
+      urlInput.value = it.url; toast("Prev video load ho raha...", "info"); start();
+    } else toast("Up Next me pichla video nahi (playlist link ho to aayega).", "info");
+  });
+  if(nxB) nxB.addEventListener("click", ()=>{
+    if(upNextList.length && upNextIndex >= 0 && upNextIndex < upNextList.length - 1){
+      const it = upNextList[upNextIndex + 1];
+      urlInput.value = it.url; toast("Next video load ho raha...", "info"); start();
+    } else toast("Up Next me agla video nahi (playlist link ho to aayega).", "info");
+  });
+}
+
 function renderFormats(){
   const el = $("flist");
   if(!el) return "";
@@ -485,19 +719,47 @@ function renderFormats(){
     const isAud = f.type === "audio";
     const sub = [f.ext ? f.ext.toUpperCase() : "", fmtBytes(f.filesize)].filter(Boolean).join(" &middot; ");
     const h = heightOf(f.label);
-    const btnLabel = f.needs_merge ? "HD Merge" : "Download";
-    const btnTitle = f.needs_merge ? "Video+Audio browser me merge hoga (aapka CPU)" : "Seedha aapke device pe download";
-    return `
+    const codec = shortCodec(f.vcodec || f.acodec || "");
+    const hint = isAud ? "" : (" &middot; " + smoothHint(f));
+    const btnLabel = f.needs_merge ? "1-Tap HD" : (f.progressive ? "Download ★1-Tap" : "Download");
+    const btnTitle = f.needs_merge ? "Video+Audio ek hi press me (browser merge, 1-tap)" : "Single file, ek hi baar me (no merge)";
+      return `
     <div class="frow">
-      <div class="fic ${isAud?"a":"v"}">${isAud?"MP3": (h >= 1080 ? "FHD" : (h >= 720 ? "HD" : "SD"))}</div>
+      <div class="fic ${isAud?"a":"v"}">${isAud ? escapeHtml((f.ext||"aud").toUpperCase()) : (h >= 1080 ? "FHD" : (h >= 720 ? "HD" : "SD"))}</div>
       <div class="ftxt">
-        <div class="fq">${escapeHtml(q)} ${f.needs_merge?`<span style="font-weight:400;color:var(--a2);font-size:12px;margin-left:4px">(+audio merge)</span>`:""} ${f.filesize?`<span style="font-weight:400;color:var(--mut);font-size:12px;margin-left:4px">(${fmtBytes(f.filesize)})</span>`:""}</div>
-        <div class="fsub">${sub || (isAud? "Audio format" : "Video format")}</div>
+        <div class="fq">${escapeHtml(q)} ${f.progressive?`<span style="font-weight:400;color:var(--grn);font-size:12px;margin-left:4px">★1-Tap</span>`: (f.needs_merge?`<span style="font-weight:400;color:var(--a2);font-size:12px;margin-left:4px">(1-Tap HD)</span>`:"")} ${f.filesize?`<span style="font-weight:400;color:var(--mut);font-size:12px;margin-left:4px">(${fmtBytes(f.filesize)})</span>`:""}</div>
+        <div class="fsub">${sub}${codec ? " &middot; " + codec : ""}${hint}</div>
         <div class="pbar"><i></i></div>
+        <div class="speed" style="font-size:11px;color:var(--a);margin-top:4px;display:none"></div>
+        <div class="dlctl" style="display:none;gap:6px;margin-top:6px">
+          <button class="btn mini pp">⏸ Pause</button>
+          <button class="btn mini cc">✕ Cancel</button>
+        </div>
       </div>
       <button class="btn dl" title="${btnTitle}" data-url="${escapeAttr(f.url)}" data-name="${escapeAttr(cleanName(currentMeta&&currentMeta.title)+" - "+q)}" data-ext="${escapeAttr(f.ext || (isAud?"mp3":"mp4"))}" data-format-id="${escapeAttr(f.format_id || "")}" data-type="${escapeAttr(f.type || "video")}">${btnLabel}</button>
     </div>`;
-  }).join("") + (filtered.some(f=>f.needs_merge) ? `<div class="merge-note">HD/4K formats video-only hote hain — <b>HD Merge</b> dabane par video+audio <b>aapke browser me merge</b> hoga (server free rehta hai). Pehli baar engine load hone me thoda time lagega.</div>` : "");
+  }).join("") + (filtered.some(f=>f.needs_merge) ? `<div class="merge-note">★1-Tap wali quality <b>ek hi baar me audio-sahit</b> milti hai (no merge, kabhi fail nahi). <b>1-Tap HD</b> dabane par video+audio <b>ek hi press me</b> jud kar milega — merge fail ho to app khud 1-Tap quality de dega. <b>✓ Smooth</b> har device par atakti nahi.</div>` : "");
+}
+
+function shortCodec(c){
+  const v = String(c || "").toLowerCase();
+  if(!v || v === "none") return "";
+  if(v.startsWith("avc1") || v.startsWith("h264")) return "AVC";
+  if(v.startsWith("vp09") || v === "vp9") return "VP9";
+  if(v.startsWith("av01") || v === "av1") return "AV1";
+  if(v.startsWith("mp4a")) return "AAC";
+  if(v === "opus") return "OPUS";
+  if(v === "vorbis") return "VORBIS";
+  return String(c).split(".")[0].toUpperCase();
+}
+
+function smoothHint(f){
+  if(f.progressive) return "✓ Smooth";
+  const v = String(f.vcodec || "").toLowerCase();
+  if(v.startsWith("avc1") || v.startsWith("h264")) return "✓ Smooth";
+  if(v.startsWith("av01") || v === "av1") return "⚠ bhaari (AV1)";
+  if((v.startsWith("vp09") || v === "vp9") && heightOf(f.label) > 1080) return "⚠ bhaari (4K)";
+  return "HD";
 }
 
 function pickFormats(q){
@@ -537,32 +799,79 @@ function setProgress(btn, pct, label){
   if(label) btn.textContent = label;
   else if(pct > 0 && pct < 1) btn.textContent = Math.round(pct*100)+"%";
 }
+function setSpeed(btn, txt){
+  const row = btn.closest(".frow");
+  const el = row ? row.querySelector(".speed") : null;
+  if(!el) return;
+  if(!txt){ el.style.display = "none"; el.textContent = ""; return; }
+  el.style.display = "block";
+  el.textContent = txt;
+}
+function showDlCtl(btn, show){
+  const row = btn.closest(".frow");
+  const ctl = row ? row.querySelector(".dlctl") : null;
+  if(ctl) ctl.style.display = show ? "flex" : "none";
+}
 function resetRow(btn, text){
   const row = btn.closest(".frow");
   const bar = row ? row.querySelector(".pbar > i") : null;
   if(bar) bar.style.width = "0";
   btn.textContent = text;
   btn.disabled = false;
+  setSpeed(btn, "");
+  showDlCtl(btn, false);
 }
 
-async function fetchWithProgress(url, onProgress){
-  const res = await fetch(url);
-  if(!res.ok) throw new Error("HTTP " + res.status);
+function fmtSpeed(bps){
+  if(!bps || bps <= 0) return "";
+  if(bps >= 1048576) return (bps/1048576).toFixed(1)+" MB/s";
+  if(bps >= 1024) return Math.round(bps/1024)+" KB/s";
+  return Math.round(bps)+" B/s";
+}
+
+/* YouTube throttling bypass (yt-dlp bhi yehi lagata hai) — iske bina
+   badi file KB/s me rengti hai aur atki lagti hai */
+function bypass(url){
+  if(!url || url.indexOf("googlevideo.com") < 0) return url;
+  if(url.indexOf("ratebypass=") >= 0) return url;
+  return url + (url.indexOf("?") >= 0 ? "&" : "?") + "ratebypass=yes";
+}
+
+/* Pause + Cancel + Speed support ke saath download.
+   ctrl = { paused:false, cancelled:false, signal } — Pause dabane par
+   reader loop ruk jata hai (connection open rehti hai), Cancel par abort. */
+async function fetchWithProgress(url, onProgress, ctrl, fetchOpts){
+  url = bypass(url);
+  const res = await fetch(url, Object.assign({}, fetchOpts || {}, ctrl && ctrl.signal ? { signal: ctrl.signal } : {}));
+  if(!res.ok){
+    if(res.status === 403) throw new Error("HTTP 403 (link expire). Dobara Get Video dabao, phir turant download karo.");
+    throw new Error("HTTP " + res.status);
+  }
   const total = parseInt(res.headers.get("Content-Length") || "0", 10);
   if(!res.body || !res.body.getReader){
     const blob = await res.blob();
-    if(onProgress) onProgress(1);
+    if(onProgress) onProgress(1, blob.size, total, 0);
     return blob;
   }
   const reader = res.body.getReader();
   const chunks = [];
   let got = 0;
+  let t0 = performance.now(), winBytes = 0, winT = t0, bps = 0;
   for(;;){
+    if(ctrl && ctrl.cancelled) { try{ reader.cancel(); }catch(e){} throw new Error("cancelled"); }
+    while(ctrl && ctrl.paused && !ctrl.cancelled){
+      if(onProgress) onProgress(total ? got/total : 0, got, total, 0, true);
+      await new Promise(r=>setTimeout(r, 300));
+    }
+    if(ctrl && ctrl.cancelled) { try{ reader.cancel(); }catch(e){} throw new Error("cancelled"); }
     const {done, value} = await reader.read();
     if(done) break;
     chunks.push(value);
     got += value.length;
-    if(total && onProgress) onProgress(got/total);
+    winBytes += value.length;
+    const now = performance.now();
+    if(now - winT > 500){ bps = winBytes * 1000 / (now - winT); winBytes = 0; winT = now; }
+    if(onProgress) onProgress(total ? got/total : -1, got, total, bps, false);
   }
   const type = res.headers.get("Content-Type") || "application/octet-stream";
   return new Blob(chunks, {type});
@@ -579,15 +888,45 @@ function saveBlob(blob, filename){
   setTimeout(()=>URL.revokeObjectURL(o), 15000);
 }
 
-/* server relay fallback (sirf CORS-blocked hosts ke liye) */
-function serverRelay(url, filename){
-  const streamUrl = API_BASE + "/api/stream?url=" + encodeURIComponent(url) + "&filename=" + encodeURIComponent(filename);
+/* YouTube (googlevideo) browser-fetch me CORS-block hota hai — iska pata URL se chalta hai */
+function isGoogleVideo(url){ return /googlevideo\.com|youtube\.com|youtu\.be/i.test(url || ""); }
+
+/* Relay ke liye context: 403/expire par server khud fresh link nikal le (self-heal) */
+function relayCtx(formatId){
+  let s = "";
+  try{
+    const page = (urlInput.value || "").trim();
+    if(/^https?:\/\//i.test(page)) s += "&page=" + encodeURIComponent(page);
+    if(formatId) s += "&format_id=" + encodeURIComponent(formatId);
+  }catch(e){}
+  return s;
+}
+
+/* VidMate-style download: browser ka Download Manager (notification bar) file pakadta hai —
+   % progress, speed, pause/resume sab native. Server sahi headers (Content-Length/Range)
+   bhejta hai taaki progress accurate dikhe. */
+function serverRelay(url, filename, formatId, withCtx){
+  url = bypass(url);
+  let streamUrl = API_BASE + "/api/stream?url=" + encodeURIComponent(url) + "&filename=" + encodeURIComponent(filename);
+  if(withCtx !== false) streamUrl += relayCtx(formatId);
   const a = document.createElement("a");
   a.href = streamUrl;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
+}
+
+/* Merge parts (video/audio bytes) lao: pehle direct, CORS-block par same-origin relay se.
+   Relay Range + Content-Length deta hai, isliye progress sahi dikhta hai. */
+async function fetchPart(url, onProg, ctrl, formatId){
+  try{
+    return await fetchWithProgress(url, onProg, ctrl);
+  }catch(e){
+    const relay = API_BASE + "/api/stream?url=" + encodeURIComponent(bypass(url))
+      + "&filename=" + encodeURIComponent("part.bin") + relayCtx(formatId);
+    return await fetchWithProgress(relay, onProg, ctrl);
+  }
 }
 
 let _ff = null, _ffUtil = null;
@@ -612,13 +951,22 @@ async function loadFFmpeg(btn){
   return ff;
 }
 
-/* HD video-only + audio ko BROWSER me merge karo (user ka CPU/RAM) */
-async function browserMerge(videoUrl, vext, audioUrl, aext, filename, btn){
+/* HD video-only + audio ko BROWSER me merge karo (user ka CPU/RAM).
+   Parts direct na milen (YouTube CORS) to relay se lao — merge phir bhi 1-tap me hoga. */
+async function browserMerge(videoUrl, vext, audioUrl, aext, filename, btn, ctrl, vFmtId, aFmtId){
   const ff = await loadFFmpeg(btn);
   setProgress(btn, 0.05, "Video fetch...");
-  const vBlob = await fetchWithProgress(videoUrl, p=>setProgress(btn, 0.05 + p*0.4));
+  const vBlob = await fetchPart(videoUrl, (p,got,total,bps,paused)=>{
+    if(paused){ setSpeed(btn, "⏸ Paused"); return; }
+    setProgress(btn, 0.05 + (p < 0 ? 0 : p)*0.4);
+    setSpeed(btn, "⚡ " + fmtSpeed(bps) + "  •  Video...");
+  }, ctrl, vFmtId);
   setProgress(btn, 0.48, "Audio fetch...");
-  const aBlob = await fetchWithProgress(audioUrl, p=>setProgress(btn, 0.48 + p*0.2));
+  const aBlob = await fetchPart(audioUrl, (p,got,total,bps,paused)=>{
+    if(paused){ setSpeed(btn, "⏸ Paused"); return; }
+    setProgress(btn, 0.48 + (p < 0 ? 0 : p)*0.2);
+    setSpeed(btn, "⚡ " + fmtSpeed(bps) + "  •  Audio...");
+  }, ctrl, aFmtId);
   const vName = "v." + (vext || "mp4").split("?")[0];
   const aName = "a." + (aext || "m4a").split("?")[0];
   await ff.writeFile(vName, new Uint8Array(await vBlob.arrayBuffer()));
@@ -642,55 +990,169 @@ function fmtById(id){
   return (currentFormats || []).find(f=>String(f.format_id) === String(id));
 }
 
+/* VidMate style 1-tap fallback: merge na ho to best progressive (single file,
+   audio-sahit) dhoondo — user ko fail kabhi na dikhe, file ek hi baar me mile */
+function bestOneTapFallback(preferH){
+  const prog = (currentFormats || []).filter(f=>f.progressive && f.type === "video" && f.url);
+  if(!prog.length) return null;
+  const rank = f=>{
+    const v = String(f.vcodec || "").toLowerCase();
+    if(v.startsWith("avc1") || v.startsWith("h264")) return 2;
+    if(f.ext === "mp4") return 1;
+    return 0;
+  };
+  prog.sort((a,b)=>{
+    const r = rank(b) - rank(a);
+    if(r !== 0) return r;
+    const ha = heightOf(a.label), hb = heightOf(b.label);
+    if(preferH > 0){
+      const sa = ha <= preferH ? ha : ha - 10000;
+      const sb = hb <= preferH ? hb : hb - 10000;
+      if(sb !== sa) return sb - sa;
+    } else if(hb !== ha) return hb - ha;
+    return (b.filesize || 0) - (a.filesize || 0);
+  });
+  return prog[0];
+}
+
+/* container-compatible audio: mp4 video -> m4a, webm video -> opus (merge fail kam) */
+function compatAudio(vfmt){
+  if(!currentMeta) return currentMeta && currentMeta.best_audio;
+  const isMp4 = (vfmt && (vfmt.ext === "mp4" || vfmt.ext === "m4v"));
+  if(isMp4 && currentMeta.best_audio_mp4) return currentMeta.best_audio_mp4;
+  if(!isMp4 && currentMeta.best_audio_webm) return currentMeta.best_audio_webm;
+  return currentMeta.best_audio;
+}
+
+function wirePauseCancel(btn, ctrl){
+  const row = btn.closest(".frow");
+  if(!row) return;
+  const pp = row.querySelector(".pp");
+  const cc = row.querySelector(".cc");
+  showDlCtl(btn, true);
+  if(pp){
+    pp.textContent = "⏸ Pause";
+    pp.onclick = (e)=>{
+      e.stopPropagation();
+      ctrl.paused = !ctrl.paused;
+      pp.textContent = ctrl.paused ? "▶ Resume" : "⏸ Pause";
+      if(ctrl.paused){ setSpeed(btn, "⏸ Paused — Resume dabao"); toast("Paused. Resume dabane par wahin se chalega.", "info"); }
+      else toast("Resume ho raha hai...", "info");
+    };
+  }
+  if(cc){
+    cc.onclick = (e)=>{
+      e.stopPropagation();
+      ctrl.cancelled = true;
+      try{ ctrl.abort(); }catch(err){}
+      toast("Cancel ho raha hai...", "info");
+    };
+  }
+}
+
 async function doDownload(url, name, ext, btn, formatId, type){
   const origText = btn ? btn.textContent : "Download";
   if(btn) btn.disabled = true;
   const baseName = (name || "video");
+  const ctrl = { paused:false, cancelled:false, signal:null, abort:null };
+  const aborter = new AbortController();
+  ctrl.signal = aborter.signal;
+  ctrl.abort = ()=>aborter.abort();
+  if(btn) wirePauseCancel(btn, ctrl);
   try{
     const fmt = formatId ? fmtById(formatId) : null;
 
-    /* CASE 1: video-only (DASH) -> browser me merge (user CPU) */
+    /* CASE 1: video-only (DASH) -> 1-tap HD: video+audio ek hi press me (browser merge) */
     if(fmt && fmt.needs_merge){
-      const audio = (currentMeta && currentMeta.best_audio) || null;
+      const audio = compatAudio(fmt);
       if(!audio || !audio.url){
+        // Audio track hi nahi — turant 1-tap progressive de do (fail nahi)
+        const fb = bestOneTapFallback(heightOf(fmt.label));
+        if(fb && fb.url && String(fb.format_id) !== String(formatId)){
+          toast("HD audio nahi mila — 1-tap " + fb.label + " de rahe (audio ke saath)...", "info");
+          return doDownload(fb.url, baseName, fb.ext || "mp4", btn, fb.format_id, fb.type);
+        }
         throw new Error("no-audio");
       }
       const filename = baseName + ".mp4";
-      toast("HD merge browser me ho raha hai (aapka CPU)...", "info");
+      toast("1-Tap HD ek hi baar me ho raha hai (video+audio)...", "info");
       try{
-        await browserMerge(fmt.url, fmt.ext, audio.url, audio.ext, filename, btn);
+        await browserMerge(fmt.url, fmt.ext, audio.url, audio.ext, filename, btn, ctrl, formatId, audio.format_id || "");
         toast("HD video ready! Download complete.", "ok");
         resetRow(btn, origText);
         return;
       }catch(merr){
-        console.warn("browser merge failed, server fallback:", merr);
+        if(merr && merr.message === "cancelled"){ resetRow(btn, origText); toast("Download cancel ho gaya.", "info"); return; }
+        console.warn("browser merge failed, 1-tap fallback:", merr);
+        // VidMate style: merge fail -> khud best 1-tap progressive single-download karo
+        const fb = bestOneTapFallback(heightOf(fmt.label));
+        if(fb && fb.url && String(fb.format_id) !== String(formatId)){
+          toast("HD merge possible nahi — 1-tap " + fb.label + " (audio-sahit) de rahe...", "info");
+          resetRow(btn, origText);
+          return doDownload(fb.url, baseName, fb.ext || "mp4", btn, fb.format_id, fb.type);
+        }
         toast("Browser merge fail — server merge try ho raha hai...", "info");
         const originalUrl = urlInput.value.trim();
         serverRelay(
           API_BASE + "/api/merge-download?url=" + encodeURIComponent(originalUrl) +
           "&filename=" + encodeURIComponent(baseName) + "&format_id=" + encodeURIComponent(formatId),
-          filename
+          filename, formatId, false
         );
         resetRow(btn, origText);
         return;
       }
     }
 
-    /* CASE 2: progressive video / audio / direct file -> seedha browser download */
-    const filename = baseName + "." + (ext || "mp4");
-    toast("Download aapke device pe ho raha hai...", "info");
+    /* CASE 2: progressive video / audio / direct file -> seedha browser download.
+       Audio ASLI container ext me save hota hai (m4a/webm/opus) — opus/webm data ko
+       ".mp3" naam dene se player bajata nahi (rename != convert), isliye force-mp3 hatao. */
+    let audioExt = String(ext || "m4a").toLowerCase();
+    if(audioExt === "mp4") audioExt = "m4a";
+    const filename = baseName + "." + (type === "audio" ? audioExt : (ext || "mp4"));
+    /* VidMate-style: YouTube direct-fetch me pakka CORS-fail hota hai — try karke time
+       waste mat karo, seedha Download Manager (📲 notification bar) me bhejo. */
+    if(isGoogleVideo(url)){
+      toast("📲 Download notification bar me start ho gaya — % progress wahin dekho.", "info");
+      serverRelay(url, filename, formatId);
+      resetRow(btn, origText);
+      return;
+    }
+    toast("Download aapke device pe ho raha hai... Pause/Cancel kar sakte ho.", "info");
     if(btn) btn.textContent = "0%";
     try{
-      const blob = await fetchWithProgress(url, p=>setProgress(btn, p));
+      const blob = await fetchWithProgress(url, (p,got,total,bps,paused)=>{
+        if(paused){ setSpeed(btn, "⏸ Paused — Resume dabao"); return; }
+        if(p >= 0){
+          setProgress(btn, p);
+          let eta = "";
+          if(bps > 0 && total > got) eta = "  •  ETA " + fmtDur((total-got)/bps);
+          setSpeed(btn, "⚡ " + fmtSpeed(bps) + "  •  " + Math.round(p*100) + "%" + eta);
+        } else {
+          setProgress(btn, 0.5);
+          setSpeed(btn, "⚡ " + fmtSpeed(bps) + "  •  " + fmtBytes(got) + " download...");
+        }
+      }, ctrl);
       saveBlob(blob, filename);
       toast("Download complete!", "ok");
     }catch(derr){
+      if(derr && derr.message === "cancelled"){ resetRow(btn, origText); toast("Download cancel ho gaya.", "info"); return; }
+      if(derr && derr.name === "AbortError"){ resetRow(btn, origText); toast("Download cancel ho gaya.", "info"); return; }
+      if(derr && String(derr.message||"").includes("403")){
+        resetRow(btn, origText);
+        toast("Link expire (403). Dobara Get Video dabao, phir turant download karo.", "err");
+        return;
+      }
       console.warn("direct blocked (CORS), server relay:", derr);
-      toast("Direct blocked — server relay se download...", "info");
-      serverRelay(url, filename);
+      toast("📲 Notification bar me download start ho raha...", "info");
+      serverRelay(url, filename, formatId);
     }
     resetRow(btn, origText);
   }catch(err){
+    if(err && (err.message === "cancelled" || err.name === "AbortError")){
+      resetRow(btn, origText);
+      toast("Download cancel ho gaya.", "info");
+      return;
+    }
     resetRow(btn, origText);
     toast("Download error: " + (err.message || err), "err");
     window.open(url, "_blank", "noopener");
@@ -811,6 +1273,24 @@ pasteBtn.addEventListener("click", async ()=>{
 });
 
 wireDownloads();
+
+/* PWA Share-Target: YouTube/Instagram/Facebook -> Share -> GSK (installed PWA).
+   Android share se /?text=<link>&url=<link> aa sakta hai — auto paste + auto fetch. */
+(function handleSharedLink(){
+  try{
+    const q = new URLSearchParams(window.location.search);
+    const raw = q.get("url") || q.get("text") || q.get("title") || q.get("share") || "";
+    if(!raw) return;
+    const m = String(raw).match(/https?:\/\/[^\s'\"<>]+/);
+    const link = (m ? m[0] : String(raw)).trim();
+    if(!/^https?:\/\//i.test(link)) return;
+    urlInput.value = link;
+    // URL bar saaf karo (dobara reload par dubara fetch na ho)
+    try{ window.history.replaceState({}, "", window.location.pathname); }catch(e){}
+    toast("Shared link mila! Fetch ho raha...", "info");
+    setTimeout(start, 600);
+  }catch(e){ console.warn("share-target:", e); }
+})();
 
 /* PWA: installable app + offline shell */
 if("serviceWorker" in navigator && window.location.protocol !== "file:"){
