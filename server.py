@@ -781,6 +781,102 @@ def health():
     }
 
 
+_YT_AUTH_NAMES = {
+    "SID", "HSID", "SSID", "APISID", "SAPISID", "LOGIN_INFO",
+    "__Secure-1PSID", "__Secure-3PSID", "__Secure-1PAPISID", "__Secure-3PAPISID",
+}
+
+
+def _cookie_status():
+    """cookies.txt / YOUTUBE_COOKIES ka health-check (names+expiry only, values kabhi nahi).
+
+    Bar-bar AUTH_REQUIRED aane ka #1 kaaran mri hui ya adhoori YouTube cookies
+    hoti hain — ye endpoint 2 second me bata deta hai cookies zinda hain ya nahi.
+    """
+    out = {
+        "source": "env:YOUTUBE_COOKIES" if _ENV_COOKIES else "file:cookies.txt",
+        "file_exists": False,
+        "total_entries": 0,
+        "youtube_entries": 0,
+        "youtube_auth_valid": [],
+        "youtube_auth_expired": [],
+        "youtube_auth_missing": sorted(_YT_AUTH_NAMES),
+        "valid": False,
+        "message": "",
+    }
+    path = COOKIES
+    try:
+        out["file_exists"] = os.path.exists(path) and os.path.getsize(path) > 2
+        if not out["file_exists"]:
+            out["message"] = (
+                "Koi cookies nahi mili (na YOUTUBE_COOKIES env, na cookies.txt). "
+                "YouTube datacenter-IP bot-check dega. Fresh YouTube login cookies "
+                "YOUTUBE_COOKIES env me dalo.")
+            return out
+        now = time.time()
+        seen_valid, seen_expired = set(), set()
+        total, yt_total = 0, 0
+        with open(path, "r", errors="ignore") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split("\t")
+                if len(parts) < 7:
+                    continue
+                try:
+                    total += 1
+                    domain, name = parts[0].lower(), parts[5]
+                    exp = int(parts[4])
+                except Exception:
+                    continue
+                if "youtube.com" not in domain:
+                    continue
+                yt_total += 1
+                if name not in _YT_AUTH_NAMES:
+                    continue
+                if exp > now:
+                    seen_valid.add(name)
+                else:
+                    seen_expired.add(name)
+        out["total_entries"] = total
+        out["youtube_entries"] = yt_total
+        out["youtube_auth_valid"] = sorted(seen_valid)
+        out["youtube_auth_expired"] = sorted(seen_expired - seen_valid)
+        out["youtube_auth_missing"] = sorted(n for n in _YT_AUTH_NAMES
+                                            if n not in seen_valid)
+        need = {"SID", "HSID", "SSID"}
+        if need.issubset(seen_valid):
+            out["valid"] = True
+            out["message"] = "YouTube auth cookies zinda hain."
+        else:
+            missing = sorted(need - seen_valid)
+            out["message"] = (
+                "YouTube auth cookies MISSING/EXPIRED: %s. Isi liye bar-bar "
+                "'Sign in to confirm you are not a bot' aata hai. Browser me "
+                "YouTube login karo → Get cookies.txt se export → YOUTUBE_COOKIES "
+                "env (production) ya cookies.txt (local) replace karo → restart."
+                % ", ".join(missing))
+    except Exception as e:
+        out["message"] = "Cookie check fail: %s" % str(e)[:120]
+    return out
+
+
+@app.get("/api/cookies/status")
+def cookies_status():
+    return _cookie_status()
+
+
+@app.on_event("startup")
+def _log_cookie_status():
+    try:
+        st = _cookie_status()
+        print("cookies: source=%s valid=%s yt_entries=%d msg=%s" % (
+            st["source"], st["valid"], st["youtube_entries"], st["message"][:160]))
+    except Exception:
+        pass
+
+
 def _search_sync(query, limit=12):
     """YouTube search (Watch-tab). Blocking — caller thread me chalao."""
     q = (query or "").strip()
