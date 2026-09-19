@@ -70,16 +70,14 @@ def base_ydl_opts(url: str = ""):
     if HAS_COOKIES:
         opts["cookiefile"] = COOKIES
     # POT path (YouTube only, POT_ENABLED=1): web client seedha player API par,
-    # har request par fresh PO-Token. Cookies ho ya na ho — farak nahi padta.
+    # har request par fresh PO-Token. Cookies HO to sath me rehti hain
+    # (auth+POT combined = best chance); na ho to POT akela ladta hai.
     if POT_ENABLED and _is_youtube_url(url):
-        try:
-            opts.pop("cookiefile", None)
-        except Exception:
-            pass
+        opts["js_runtimes"] = {"node": {}}
         opts["extractor_args"] = {
             "youtube": {
                 "player_client": ["web"],
-                "player_skip": ["webpage", "configs"],
+                "player_skip": ["player_response", "configs"],
                 "fetch_pot": ["always"],
             },
             "youtubepot-bgutilhttp": {"base_url": [POT_URL]},

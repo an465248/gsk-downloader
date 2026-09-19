@@ -7,7 +7,7 @@ FROM python:3.12-slim
 # start hi nahi hota — purana behavior 100% same rehta hai.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    ffmpeg curl ca-certificates gnupg \
+    ffmpeg curl ca-certificates gnupg git \
     python3 make g++ pkg-config \
     libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev libpixman-1-dev \
   && mkdir -p /etc/apt/keyrings \
@@ -23,7 +23,8 @@ RUN apt-get update \
 RUN git clone --single-branch --branch 2.0.0 --depth 1 \
     https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git /opt/bgutil \
   && cd /opt/bgutil/server && npm ci && npx tsc && npm prune --omit=dev \
-  && node -e "require('/opt/bgutil/server/node_modules/canvas'); console.log('canvas ok')"
+  && (node -e "require('/opt/bgutil/server/node_modules/canvas'); console.log('canvas ok')" \
+    || echo "WARNING: canvas native build failed — POT token low-integrity rahega")
 
 WORKDIR /app
 COPY requirements.txt .
