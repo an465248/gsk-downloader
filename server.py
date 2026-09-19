@@ -36,68 +36,22 @@ else:
     COOKIES = os.path.join(DIR, "cookies.txt")
 HAS_COOKIES = os.path.exists(COOKIES) and os.path.getsize(COOKIES) > 2
 HAS_FFMPEG = shutil.which("ffmpeg") is not None
-UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36"
-IG_UA = "Mozilla/5.0 (Linux; Android 10; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36 Instagram 340.0.0.44.120 (Android 13; 420dpi; 1080x2220; facebook)"
-FB_UA = "Mozilla/5.0 (Linux; Android 13; SM-S901B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36"
-IG_HEADERS = {
-    "User-Agent": IG_UA,
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
-    "X-IG-App-ID": "1217987345674890",
-    "X-IG-WWW-Claim": "0",
-}
-FB_HEADERS = {
-    "User-Agent": FB_UA,
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
-    "X-FB-Platform": "Android",
-}
+UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
 
-def base_ydl_opts(url: str = ""):
+def base_ydl_opts():
     # SPEED: kam timeout + kam retry = fail fast, success path same speed.
     # (Retry sirf fail par lagta hai; success 1 attempt me nikalta hai.)
-    # INSTAGRAM/FB FIX: Optimized headers + mobile UA for instant extraction.
     opts = {
         "quiet": True,
         "no_warnings": True,
-        "socket_timeout": 15,
+        "socket_timeout": 10,
         "retries": 2,
-        "fragment_retries": 3,
+        "fragment_retries": 2,
         "extractor_retries": 2,
         "http_headers": {"User-Agent": UA},
         "no_playlist": False,
-        # AD-FREE BLANK FIX: default clients (visionos/web, SABR) ZERO progressive
-        # (single-file) dete hain — sab video-only, preview heavy/blank lagta hai.
-        # Plain "android" client jodne se 18 (360p mp4, video+audio juda) wapas
-        # milta hai = instant ad-free play, no merge, no blank box.
-        # (APK gsk.py me ye pehle se hai — server/Linux/web me missing tha.)
-        "extractor_args": {"youtube": {"player_client": ["default", "android"]}},
-        # INSTAGRAM-FIX: better extractor for IG Reels
-        "extractor_args": {"instagram": {"lang": "en"}},
-        # Playlist/channel link aaye to poori list enumerate mat karo (slow) —
-        # main extract me sirf pehla video, Up-Next flat-task se alag aayega.
-        "playlist_items": "1",
-        "playlistend": 1,
-        "geo_bypass": True,
-        # INSTAGRAM/FB FIX: platform-specific headers for faster extraction
-        "extractor_args": {
-            "youtube": {"player_client": ["default", "android"]},
-            "instagram": {"lang": "en"},
-        },
     }
-    # Instagram/Facebook URL detection: use mobile UA + platform headers
-    if "instagram.com" in url.lower() or "fbcdn.net" in url.lower() \
-            or "fb.com" in url.lower() or "facebook.com" in url.lower():
-        opts["http_headers"] = dict(IG_HEADERS) if "instagram.com" in url.lower() else dict(FB_HEADERS)
-        opts["socket_timeout"] = 20
-        opts["retries"] = 3
-        opts["fragment_retries"] = 5
-        opts["extractor_retries"] = 3
     if HAS_COOKIES:
         opts["cookiefile"] = COOKIES
     return opts
@@ -278,72 +232,43 @@ def _youtube_related_sync(video_id, limit=15):
 
 def friendly_error(e: Exception) -> str:
     msg = str(e).strip()
-    msg = re.sub(r"^(ERROR:\s*)+", "", msg)
+    msg = re.sub(r"^(ERROR:\s*)+", "", msg)  # yt-dlp prefix hatao
     low = msg.lower()
-
-    # NETWORK ERRORS → Retry
-    if "timed out" in low or "timeout" in low:
-        return "NETWORK_ERROR: Site ne reply nahi diya (timeout). Thoda ruk kar dobara try karo."
-    if "name or service not known" in low or "failed to resolve" in low or "network" in low:
-        return "NETWORK_ERROR: Network error — connection check karke retry karo."
-    if "rate-limit" in low or "rate limited" in low or "try again later" in low:
-        return "NETWORK_ERROR: Site ne temporarily rok lagayi hai. 10-15 min ruk kar retry karo."
-
-    # TEMPORARY API ERRORS → Retry
-    if "http error 5" in low or " 500" in low or " 502" in low or " 503" in low or " 504" in low:
-        return "TEMP_API_ERROR: Server error — thoda ruk kar dobara try karo."
-
-    # VIDEO UNAVAILABLE → Clear error (no retry)
-    if "private" in low:
-        return "UNAVAILABLE: Ye video private hai — sirf public videos download hoti hain."
-    if "age" in low and "confirm" in low:
-        return "UNAVAILABLE: Age-restricted video supported nahi hai."
-    if "unsupported url" in low:
-        return "UNAVAILABLE: Ye URL supported nahi hai. Direct video link try karo."
-    if "playlist" in low and ("not exist" in low or "does not exist" in low or "not found" in low or "unavailable" in low or "empty" in low):
-        return "UNAVAILABLE: Playlist nahi mili ya private hai — direct video ka link paste karo."
-    if "this video is not available" in low or "video unavailable" in low:
-        return "UNAVAILABLE: Ye video available nahi hai."
-
-    # AUTH / BOT CHECK → Clear error (requires user cookies, no auto-retry)
     if "sign in to confirm" in low or "bot" in low:
-        return ("AUTH_REQUIRED: YouTube ne bot-check lagaya hai. "
-                "Server ke gsk-downloader/cookies.txt me apne YouTube login cookies dalo: "
-                "Browser me YouTube kholo → login karo → Get cookies.txt extension se export → "
-                "cookies.txt replace karo → ./run.sh restart. Bina login cookies ke YouTube ab allow nahi karta.")
-
-    # LOGIN REQUIRED (Instagram/Facebook)
+        return "YouTube ne bot-check lagaya hai. Server par cookies.txt update karo, phir retry karo."
+    if "private" in low:
+        return "Ye video private hai — sirf public videos download hoti hain."
     if "login required" in low or "log in" in low or "not logged in" in low:
         if "instagram" in low:
-            return ("AUTH_REQUIRED: Instagram ne login-wall lagaya hai. "
-                    "Server ke cookies (YOUTUBE_COOKIES env) me Instagram login cookies dalo, phir retry karo. "
-                    "Public reels bina login ke nahi nikalti.")
+            return "Instagram ne login-wall lagaya hai. Server ke cookies (YOUTUBE_COOKIES env) me Instagram login cookies dalo, phir retry karo. Public reels bina login ke nahi nikalti."
         if "facebook" in low or "fb" in low:
-            return "AUTH_REQUIRED: Ye Facebook video private hai ya login maang rahi hai. Public videos (SD+HD) bina login ke chalti hain."
-        return "AUTH_REQUIRED: Is video ke liye login chahiye — supported nahi hai."
-
+            return "Ye Facebook video private hai ya login maang rahi hai. Public videos (SD+HD) bina login ke chalti hain."
+        return "Is video ke liye login chahiye — supported nahi hai."
     if "empty media response" in low or ("cannot parse data" in low and "instagram" in low):
-        return ("AUTH_REQUIRED: Instagram ne login-wall lagaya hai. "
-                "Server cookies me Instagram login dalo, phir retry karo.")
-
+        return "Instagram ne login-wall lagaya hai. Server cookies me Instagram login dalo, phir retry karo."
     if "cannot parse data" in low and ("facebook" in low or "fb" in low):
-        return "TEMP_API_ERROR: Facebook page poori load nahi hui — dobara Get Video dabao. (Public videos bina login ke chalti hain.)"
-
+        return "Facebook page poori load nahi hui — dobara Get Video dabao. (Public videos bina login ke chalti hain.)"
     if "snapchat" in low or "snapchat.com" in low:
         if "unsupported url" in low:
-            return ("UNAVAILABLE: Ye Snapchat link support nahi hai. Sirf Spotlight links chalte hain "
+            return ("Ye Snapchat link support nahi hai. Sirf Spotlight links chalte hain "
                     "(snapchat.com/spotlight/...). Snapchat app me video kholo → Share → "
                     "Copy Link karke Spotlight link paste karo.")
-        return ("UNAVAILABLE: Snapchat link nahi khula — Spotlight ka public link try karo "
+        return ("Snapchat link nahi khula — Spotlight ka public link try karo "
                 "(snapchat.com/spotlight/...). Private/story links supported nahi hain.")
-
+    if "rate-limit" in low or "rate limited" in low or "try again later" in low:
+        return "Site ne temporarily rok lagayi hai. 10-15 min ruk kar retry karo."
+    if "age" in low and "confirm" in low:
+        return "Age-restricted video supported nahi hai."
+    if "unsupported url" in low:
+        return "Ye URL supported nahi hai. Direct video link try karo."
     if "http error 403" in low or " 403" in low:
-        return "EXPIRED: Link expire ho gaya (403). Dobara Get Video dabao taaki fresh link mile, phir turant download karo."
+        return "Link expire ho gaya (403). Dobara Get Video dabao taaki fresh link mile, phir turant download karo."
     if "http error 416" in low or "416" in low:
-        return "EXPIRED: Resume fail (416). Dobara fresh link se download karo."
-    if "reload" in low and "page" in low:
-        return "TEMP_API_ERROR: Page load nahi hui — net check karke dobara Get Video dabao."
-
+        return "Resume fail (416). Dobara fresh link se download karo."
+    if "timed out" in low or "timeout" in low:
+        return "Site ne reply nahi diya (timeout). Thoda ruk kar dobara try karo."
+    if "name or service not known" in low or "failed to resolve" in low or "network" in low:
+        return "Network error — connection check karke retry karo."
     return msg[:300]
 
 
@@ -357,23 +282,6 @@ def _with_bypass(u: str) -> str:
     """YouTube per-connection throttle bypass (yt-dlp bhi yehi lagata hai)."""
     if u and "googlevideo.com" in u and "ratebypass=" not in u:
         u += ("&" if "?" in u else "?") + "ratebypass=yes"
-    return u
-
-
-def _ig_fb_bypass(u: str) -> str:
-    """Add IG/FB-specific query params to avoid CDN throttling."""
-    if not u:
-        return u
-    # Instagram CDN: add ig_platform params
-    if "instagram.f" in u or ".instagram.com" in u:
-        if "ig_platform" not in u:
-            u += ("&" if "?" in u else "?") + "ig_platform=mobile"
-        if "_cx" not in u:
-            u += ("&" if "?" in u else "?") + "_cx=0"
-    # Facebook CDN: add fb params
-    if "fbcdn.net" in u or "fb.com" in u:
-        if "fb_www" not in u:
-            u += ("&" if "?" in u else "?") + "fb_www=1"
     return u
 
 
@@ -747,19 +655,8 @@ def pick_formats(formats_raw, duration=None):
             ftype, progressive = "video", True
             label = f"{height}p" if height else (f.get("format_note") or ext or "Video")
         elif has_video:
-            # INSTAGRAM/FB FIX: some IG/FB formats have audio embedded
-            # even when acodec says none. Check URL for IG/FB CDN.
-            is_ig_fb = ("instagram" in url.lower() or "fbcdn" in url.lower()
-                       or "scontent" in url.lower() or "fb.com" in url.lower())
-            if is_ig_fb and ext in ("mp4", "m4v", "mov") and proto in ("https", "http"):
-                # Likely progressive MP4 from IG/FB CDN with embedded audio
-                has_audio = True
-                acodec = "mp4a"
-                ftype, progressive = "video", True
-                label = f"{height}p" if height else (f.get("format_note") or ext or "Video")
-            else:
-                ftype, progressive = "video", False
-                label = f"{height}p" if height else (f.get("format_note") or ext or "Video")
+            ftype, progressive = "video", False
+            label = f"{height}p" if height else (f.get("format_note") or ext or "Video")
         else:
             ftype, progressive = "audio", False
             label = f.get("format_note") or (f"Audio {int(abr)}kbps" if abr else "Audio")
@@ -894,11 +791,6 @@ def _search_sync(query, limit=12):
     except Exception:
         limit = 12
     fopts = dict(base_ydl_opts())
-    # SEARCH-FIX: base opts me single-video limit (playlist_items/playlistend=1)
-    # hota hai — ytsearch par wahi lag jaye to 1 hi video aata hai. Search me
-    # poora limit chahiye, isliye sirf yahan hatao (baaki flow untouched).
-    fopts.pop("playlist_items", None)
-    fopts.pop("playlistend", None)
     fopts.update({
         "skip_download": True,
         "extract_flat": True,
@@ -1063,9 +955,6 @@ async def extract(request: Request):
 
     def _run_flat():
         fo = base_ydl_opts()
-        # Flat Up-Next ko poori list chahiye — single-video limit hatao.
-        fo.pop("playlist_items", None)
-        fo.pop("playlistend", None)
         fo.update({"extract_flat": True, "playlistend": 20})
         with yt_dlp.YoutubeDL(fo) as ydl:
             return ydl.extract_info(url, download=False)
@@ -1325,32 +1214,14 @@ async def server_download(request: Request):
     outtmpl = os.path.join(tmp_dir, "%(title)s.%(ext)s")
 
     def _run():
-        # SMART FORMAT SELECTION: check for progressive (video+audio) first
-        page_info = yt_dlp.YoutubeDL(base_ydl_opts(page)).extract_info(page, download=False)
-        formats = page_info.get("formats") or []
-        progressive = [f for f in formats if f.get("progressive") and f.get("url")]
-        # Use best progressive if available = NO MERGE NEEDED = instant
-        if progressive:
-            progressive.sort(key=lambda f: (f.get("height") or 0, f.get("tbr") or 0), reverse=True)
-            best_prog = progressive[0]
-            fmt_str = str(best_prog.get("format_id"))
-        else:
-            # Need merge: use bestvideo+bestaudio
-            fmt_str = f"{format_id}+bestaudio/best" if format_id else "bestvideo+bestaudio/best"
-        opts = base_ydl_opts(page)
+        opts = base_ydl_opts()
+        # Chuni hui quality (HD merge): us format + best audio, warna best
+        fmt_str = f"{format_id}+bestaudio/best" if format_id else "bestvideo+bestaudio/best"
         opts.update({
             "outtmpl": outtmpl,
             "format": fmt_str,
             "merge_output_format": "mp4",
-            "ffmpeg_location": shutil.which("ffmpeg"),
         })
-        # When merging IS needed, add postprocessors for FAST stream-copy
-        if not progressive:
-            opts["postprocessors"] = [{
-                "key": "FFmpegMergerPP",
-                "when": "after_video",
-                "ffmpeg_location": shutil.which("ffmpeg"),
-            }]
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.extract_info(page, download=True)
             found = None
@@ -1399,7 +1270,7 @@ async def stream_file(request: Request):
     if not url:
         return JSONResponse({"error": "URL required"}, status_code=400)
     safe_name = safe_filename(unquote(filename), "video.mp4")
-    url = _ig_fb_bypass(_with_bypass(url))
+    url = _with_bypass(url)
 
     client_range = request.headers.get("range")
 
@@ -1513,30 +1384,15 @@ async def merge_download(request: Request):
     fmt_str = f"{format_id}+bestaudio/best" if format_id else "bestvideo+bestaudio/best"
 
     def _run():
-        # SMART: check progressive first = instant download
-        page_info = yt_dlp.YoutubeDL(base_ydl_opts(url)).extract_info(url, download=False)
-        formats = page_info.get("formats") or []
-        progressive = [f for f in formats if f.get("progressive") and f.get("url")]
-        if progressive:
-            progressive.sort(key=lambda f: (f.get("height") or 0, f.get("tbr") or 0), reverse=True)
-            fmt_str = str(progressive[0].get("format_id"))
-        else:
-            fmt_str = fmt_str  # already set above
-        opts = base_ydl_opts(url)
+        opts = base_ydl_opts()
         opts.update({
             "outtmpl": outtmpl,
             "format": fmt_str,
             "merge_output_format": "mp4",
-            "ffmpeg_location": shutil.which("ffmpeg"),
         })
-        if not progressive:
-            opts["postprocessors"] = [{
-                "key": "FFmpegMergerPP",
-                "when": "after_video",
-                "ffmpeg_location": shutil.which("ffmpeg"),
-            }]
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=True)
+            # sabse badi bani hui media file dhoondo
             found = None
             for root, _, files in os.walk(tmp_dir):
                 for fn in files:
