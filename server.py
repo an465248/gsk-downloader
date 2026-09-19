@@ -38,8 +38,23 @@ HAS_COOKIES = os.path.exists(COOKIES) and os.path.getsize(COOKIES) > 2
 HAS_FFMPEG = shutil.which("ffmpeg") is not None
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 
+# PO-Token (bot-check bypass, bina login cookies):
+# POT_ENABLED=1 (Render env) par YouTube extract PO-Token provider se hota hai —
+# cookies.txt/YOUTUBE_COOKIES ki zaroorat nahi. Default OFF = purana behavior.
+# POT sidecar (start_server.sh) 127.0.0.1:4416 par chalta hai.
+POT_ENABLED = os.environ.get("POT_ENABLED", "") == "1"
+POT_URL = os.environ.get("POT_URL", "http://127.0.0.1:4416").strip() or "http://127.0.0.1:4416"
 
-def base_ydl_opts():
+
+def _is_youtube_url(u: str) -> bool:
+    try:
+        ul = (u or "").lower()
+        return "youtube.com" in ul or "youtu.be" in ul
+    except Exception:
+        return False
+
+
+def base_ydl_opts(url: str = ""):
     # SPEED: kam timeout + kam retry = fail fast, success path same speed.
     # (Retry sirf fail par lagta hai; success 1 attempt me nikalta hai.)
     opts = {
@@ -54,6 +69,21 @@ def base_ydl_opts():
     }
     if HAS_COOKIES:
         opts["cookiefile"] = COOKIES
+    # POT path (YouTube only, POT_ENABLED=1): web client seedha player API par,
+    # har request par fresh PO-Token. Cookies ho ya na ho — farak nahi padta.
+    if POT_ENABLED and _is_youtube_url(url):
+        try:
+            opts.pop("cookiefile", None)
+        except Exception:
+            pass
+        opts["extractor_args"] = {
+            "youtube": {
+                "player_client": ["web"],
+                "player_skip": ["webpage", "configs"],
+                "fetch_pot": ["always"],
+            },
+            "youtubepot-bgutilhttp": {"base_url": [POT_URL]},
+        }
     return opts
 
 
@@ -235,6 +265,11 @@ def friendly_error(e: Exception) -> str:
     msg = re.sub(r"^(ERROR:\s*)+", "", msg)  # yt-dlp prefix hatao
     low = msg.lower()
     if "sign in to confirm" in low or "bot" in low:
+        if POT_ENABLED:
+            return ("YouTube ne bot-check lagaya hai (POT token bhi reject hua). "
+                    "Render logs me 'POT: sidecar UP' tha ya nahi dekho — canvas ke "
+                    "bina token kamzor hota hai. Last option: YOUTUBE_COOKIES env "
+                    "me fresh YouTube login cookies dalo.")
         return "YouTube ne bot-check lagaya hai. Server par cookies.txt update karo, phir retry karo."
     if "private" in low:
         return "Ye video private hai — sirf public videos download hoti hain."
@@ -321,7 +356,7 @@ def _is_snapchat_url(url: str) -> bool:
 def _fresh_format_url(page: str, format_id: str):
     """403/expire par page dobara extract karke usi format ka fresh URL nikalo."""
     try:
-        with yt_dlp.YoutubeDL(base_ydl_opts()) as ydl:
+        with yt_dlp.YoutubeDL(base_ydl_opts(page)) as ydl:
             info = ydl.extract_info(page, download=False)
         if info.get("_type") == "playlist":
             entries = [e for e in (info.get("entries") or []) if e]
@@ -777,6 +812,8 @@ def health():
         "status": "ok",
         "ffmpeg": HAS_FFMPEG,
         "cookies": HAS_COOKIES,
+        "pot_enabled": POT_ENABLED,
+        "pot_url": POT_URL if POT_ENABLED else "",
         "mode": "user-device-download",
     }
 
@@ -1050,7 +1087,7 @@ async def extract(request: Request):
                 or "/@" in ul or "/c/" in ul or "/user/" in ul)
 
     def _run_flat():
-        fo = base_ydl_opts()
+        fo = base_ydl_opts(url)
         fo.update({"extract_flat": True, "playlistend": 20})
         with yt_dlp.YoutubeDL(fo) as ydl:
             return ydl.extract_info(url, download=False)
@@ -1087,7 +1124,7 @@ async def extract(request: Request):
                 pass
 
     def _run():
-        with yt_dlp.YoutubeDL(base_ydl_opts()) as ydl:
+        with yt_dlp.YoutubeDL(base_ydl_opts(url)) as ydl:
             return ydl.extract_info(url, download=False)
 
     try:
@@ -1131,7 +1168,7 @@ async def extract(request: Request):
             sub_url = info.get("webpage_url") or info["url"]
 
             def _run2():
-                with yt_dlp.YoutubeDL(base_ydl_opts()) as ydl:
+                with yt_dlp.YoutubeDL(base_ydl_opts(sub_url)) as ydl:
                     return ydl.extract_info(sub_url, download=False)
 
             try:
@@ -1310,7 +1347,7 @@ async def server_download(request: Request):
     outtmpl = os.path.join(tmp_dir, "%(title)s.%(ext)s")
 
     def _run():
-        opts = base_ydl_opts()
+        opts = base_ydl_opts(page)
         # Chuni hui quality (HD merge): us format + best audio, warna best
         fmt_str = f"{format_id}+bestaudio/best" if format_id else "bestvideo+bestaudio/best"
         opts.update({
@@ -1480,7 +1517,7 @@ async def merge_download(request: Request):
     fmt_str = f"{format_id}+bestaudio/best" if format_id else "bestvideo+bestaudio/best"
 
     def _run():
-        opts = base_ydl_opts()
+        opts = base_ydl_opts(url)
         opts.update({
             "outtmpl": outtmpl,
             "format": fmt_str,

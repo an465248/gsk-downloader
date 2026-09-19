@@ -2,3 +2,6 @@ fastapi>=0.115,<0.120
 uvicorn[standard]>=0.30,<0.36
 yt-dlp>=2024.8.6
 httpx>=0.27,<0.29
+# PO-Token provider (YouTube bot-check bypass, bina login cookies).
+# POT_ENABLED=1 par server.py ise use karta hai; default OFF.
+bgutil-ytdlp-pot-provider==2.0.0
